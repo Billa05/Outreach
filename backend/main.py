@@ -6,9 +6,6 @@ from typing import Optional, List, Dict, Any, Tuple
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
-# Ensure you have set your OpenAI API key in your environment variables
-# os.environ["OPENAI_API_KEY"] = "your_key_here"
-
 # --- Crawl4AI Imports ---
 from crawl4ai import (
     AsyncWebCrawler,
@@ -22,20 +19,27 @@ from crawl4ai import (
     MemoryAdaptiveDispatcher,
     RateLimiter,
 )
-
 from crawl4ai.async_url_seeder import AsyncUrlSeeder
 
 # --- Pydantic Models ---
 
 class ProcessLinksRequest(BaseModel):
-    """Defines the request model for the API endpoint."""
     links: List[str]
     geographical_area: Optional[str] = None
     query: str
 
 class ContentSummary(BaseModel):
-    """A generic Pydantic schema for the LLM summary output."""
     summary: str = Field(description="A concise summary of the key information contained in the provided text.")
+
+# NEW: Pydantic model for detailed contact extraction. This is more robust for the LLM.
+class DetailedContact(BaseModel):
+    name: Optional[str] = Field(description="Person or Company Name")
+    designation: Optional[str] = Field(description="Job Title or Role (e.g., Sales Manager, CEO)")
+    email: Optional[str] = Field(description="The person's email address")
+    phone: Optional[str] = Field(description="The person's phone number")
+
+class ContactList(BaseModel):
+    contacts: List[DetailedContact]
 
 # --- Geolocation Helper ---
 
@@ -78,75 +82,67 @@ async def discover_urls(seeder: AsyncUrlSeeder, domain: str, query: str) -> Tupl
     print(f"[{domain}] Discovered {len(contact_urls)} potential contact pages and {len(about_urls)} summary pages.")
     return contact_urls, about_urls
 
+# REVISED: This function is completely rewritten to implement your strategy.
 async def extract_detailed_contacts(crawler: AsyncWebCrawler, urls: List[str], geo_settings: dict, llm_config: LLMConfig, dispatcher: MemoryAdaptiveDispatcher) -> List[Dict[str, Any]]:
     """
-    FIXED: Extracts detailed contact information efficiently.
-    This version generates the schema ONCE and applies it to all relevant pages,
-    avoiding costly and slow repeated LLM calls.
+    Extracts detailed contact information using a robust and efficient LLM-based approach.
     """
     if not urls:
         return []
 
-    # Stage 1: Use fast regex to find which pages actually contain contact info.
+    # Step 1: Find pages that actually contain contact info using fast regex.
     regex_strategy = RegexExtractionStrategy(pattern=(RegexExtractionStrategy.Email | RegexExtractionStrategy.PhoneUS | RegexExtractionStrategy.PhoneIntl))
-    config = CrawlerRunConfig(extraction_strategy=regex_strategy, **geo_settings)
+    regex_config = CrawlerRunConfig(extraction_strategy=regex_strategy, **geo_settings)
+    url_results = await crawler.arun_many(urls, regex_config, dispatcher=dispatcher)
     
-    # Use arun_many for efficient, concurrent checking of all potential contact URLs.
-    url_results = await crawler.arun_many(urls, config, dispatcher=dispatcher)
+    urls_with_contacts = [r.url for r in url_results if r.success and r.extracted_content and json.loads(r.extracted_content)]
     
-    pages_with_contacts = [r for r in url_results if r.success and r.extracted_content and json.loads(r.extracted_content)]
-    
-    if not pages_with_contacts:
+    if not urls_with_contacts:
         return []
+    print(f"Found {len(urls_with_contacts)} pages with potential contact info. Isolating relevant sections...")
 
-    print(f"Found {len(pages_with_contacts)} pages with contact info. Generating a single schema...")
+    # Step 2: Isolate the contact sections from those pages to reduce context for the LLM.
+    # This uses css_selector to grab common contact sections, making the LLM call cheaper and more focused.
+    selector_config = CrawlerRunConfig(
+        css_selector=['.contact', '#contact', 'footer', '[class*="contact"]', '[id*="contact"]'],
+        **geo_settings
+    )
+    snippet_results = await crawler.arun_many(urls_with_contacts, selector_config, dispatcher=dispatcher)
+    
+    combined_snippets = ""
+    for i, result in enumerate(snippet_results):
+        if result.success and result.cleaned_html:
+            combined_snippets += f"--- Page {i+1} from {result.url} ---\n{result.cleaned_html}\n\n"
 
-    # Stage 2: Generate a schema ONCE from the first valid page.
-    # This is the most critical fix. You should not call generate_schema in a loop.
-    # It's a one-time operation per site structure.
-    try:
-        sample_html = pages_with_contacts[0].cleaned_html
-        target_json_example = """
-        [{
-            "name": "Person or Company Name",
-            "designation": "Job Title or Role (e.g., Sales Manager, CEO)",
-            "email": "example@domain.com",
-            "phone": "+1 (555) 123-4567"
-        }]
-        """
-        schema = JsonCssExtractionStrategy.generate_schema(
-            html=sample_html,
-            target_json_example=target_json_example,
-            llm_config=llm_config
-        )
-    except Exception as e:
-        print(f"Could not generate an extraction schema, skipping detailed contacts. Error: {e}")
+    if not combined_snippets:
         return []
+    print("Relevant sections isolated. Extracting details with LLM...")
 
-    print("Schema generated successfully. Applying to all contact pages...")
+    # Step 3: Use the LLM to perform the final extraction on the combined, smaller snippets.
+    # This is more robust than schema generation if page structures vary.
+    llm_strategy = LLMExtractionStrategy(
+        llm_config=llm_config,
+        schema=ContactList.model_json_schema(),
+        instruction="From the provided HTML snippets, extract a list of all contacts with their name, designation, email, and phone number. Consolidate information for the same person if found across multiple pages.",
+        apply_chunking=True, # Handles cases where combined snippets are large
+        input_format="html" # Use HTML to preserve context for the LLM
+    )
+    extract_config = CrawlerRunConfig(extraction_strategy=llm_strategy)
     
-    # Stage 3: Apply the single, generated schema to all pages that had contacts.
-    # This is extremely fast and makes no further LLM calls.
-    extract_config = CrawlerRunConfig(extraction_strategy=JsonCssExtractionStrategy(schema))
-    contact_page_urls = [r.url for r in pages_with_contacts]
+    final_result = await crawler.arun(f"raw://{combined_snippets}", config=extract_config)
     
-    detailed_results = await crawler.arun_many(contact_page_urls, extract_config, dispatcher=dispatcher)
-    
-    all_contacts = []
-    for result in detailed_results:
-        if result.success and result.extracted_content:
-            try:
-                all_contacts.extend(json.loads(result.extracted_content))
-            except json.JSONDecodeError:
-                continue
-    
-    # Deduplicate results
-    if not all_contacts:
-        return []
-    unique_contacts = list({json.dumps(d, sort_keys=True): d for d in all_contacts}.values())
-    print(f"Found {len(unique_contacts)} unique detailed contacts.")
-    return unique_contacts
-
+    if final_result.success and final_result.extracted_content:
+        try:
+            data = json.loads(final_result.extracted_content)
+            contacts = data.get('contacts', [])
+            # Deduplicate results
+            unique_contacts = list({json.dumps(d, sort_keys=True): d for d in contacts if d.get('email') or d.get('phone')}.values())
+            print(f"Found {len(unique_contacts)} unique detailed contacts.")
+            return unique_contacts
+        except (json.JSONDecodeError, AttributeError):
+            return []
+            
+    return []
 
 async def generate_content_summary(crawler: AsyncWebCrawler, urls: List[str], geo_settings: dict, dispatcher: MemoryAdaptiveDispatcher) -> str:
     """Generates a summary from a list of relevant pages."""

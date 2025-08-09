@@ -1,3 +1,4 @@
 fastapi
-uvicorn[standard]
-crawl4ai
+uvicorn
+python-dotenv
+crawl4ai[all]  # Installs all optional dependencies like torch and transformers

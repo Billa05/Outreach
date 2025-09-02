@@ -4,6 +4,7 @@ import os
 from urllib.parse import urlparse, urljoin
 
 from fastapi import FastAPI, HTTPException
+from contextlib import asynccontextmanager
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
 import json
@@ -18,10 +19,19 @@ from crawl4ai import (
 )
 
 # --- FastAPI App Setup ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await crawler.start()
+    try:
+        yield
+    finally:
+        await crawler.close()
+
 app = FastAPI(
     title="Contact Extractor API",
     description="An API to find and extract contact information from important internal pages.",
-    version="2.0.0"
+    version="2.0.0",
+    lifespan=lifespan
 )
 
 # --- Pydantic Models ---
@@ -70,10 +80,6 @@ class LinkProcessor:
 
 # --- Crawler Instance & Lifecycle ---
 crawler = AsyncWebCrawler()
-@app.on_event("startup")
-async def startup_event(): await crawler.start()
-@app.on_event("shutdown")
-async def shutdown_event(): await crawler.close()
 
 # --- Reusable Crawler Logic ---
 async def _get_important_internal_links(base_urls: List[str]) -> Dict[str, List[str]]:

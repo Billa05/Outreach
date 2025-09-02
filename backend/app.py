@@ -196,5 +196,24 @@ async def extract_contact_info(request: URLRequest):
                 errors[result.url] = f"LLM result parsing error: {str(e)}"
 
     final_contacts = {k: v for k, v in final_contacts.items() if v}
+    
+    # === STEP 4: Dedupe contacts per base URL (case-insensitive for emails) ===
+    def _contact_key(c: ContactInfo):
+        name_key = (c.name or '').strip()
+        designation_key = (c.designation or '').strip()
+        email_key = (c.email or '').strip().lower()
+        phone_key = (c.phone or '').strip()
+        return (name_key, designation_key, email_key, phone_key)
+
+    for base_url, contacts in list(final_contacts.items()):
+        seen = set()
+        unique_list: List[ContactInfo] = []
+        for contact in contacts:
+            key = _contact_key(contact)
+            if key in seen:
+                continue
+            seen.add(key)
+            unique_list.append(contact)
+        final_contacts[base_url] = unique_list
 
     return ContactExtractionResponse(contacts_found=final_contacts, errors=errors)

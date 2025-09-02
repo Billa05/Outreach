@@ -251,23 +251,17 @@ async def _get_website_summaries(base_urls: List[str], important_links_map: Dict
                         page_title = urlparse(result.url).path.strip('/') or "Homepage"
                     
                     page_titles.append(page_title)
-                    combined_markdown.append(f"## {page_title}\n{result.markdown}\n")
+                    combined_markdown.append(f"{page_title} {result.markdown}")
             
             if not combined_markdown:
                 continue
                 
             # Combine all markdown content
-            full_content = "\n".join(combined_markdown)
+            full_content = " ".join(combined_markdown)
             
             # Truncate if too long (LLM context limits)
             if len(full_content) > 50000:  # Rough limit to stay within token limits
-                full_content = full_content[:50000] + "\n\n[Content truncated due to length]"
-            
-            # Generate summary using LLM
-            llm_provider_config = LLMConfig(
-                provider="gemini/gemini-2.0-flash",
-                api_token="env:GEMINI_API_KEY",
-            )
+                full_content = full_content[:50000]
             
             summary_instruction = f"""
             Analyze the following website content and provide a comprehensive summary in plain text format. The content includes informational pages from: {', '.join(page_titles)}.
@@ -281,29 +275,14 @@ async def _get_website_summaries(base_urls: List[str], important_links_map: Dict
             - Notable partnerships, certifications, or achievements
             - Business policies, terms, and important information
             
-            IMPORTANT: Write in plain text only. Do not use any markdown formatting, bullet points, numbered lists, or special characters like ** or ##. Write as natural paragraphs that flow together.
+            IMPORTANT: Write in plain text only. Do not use any markdown formatting, bullet points, numbered lists, or special characters like ** or ## or \n or \. Do not include newlines (\n) or backslashes (\) in your response. Write as natural paragraphs that flow together as continuous text.
             
             Keep the summary concise but informative (2-3 paragraphs maximum).
             Focus on the most important and distinctive aspects of the business based on the informational content.
             """
             
-            llm_strategy = LLMExtractionStrategy(
-                llm_config=llm_provider_config,
-                schema={"type": "object", "properties": {"summary": {"type": "string"}}},
-                instruction=summary_instruction,
-                input_format="fit_markdown"
-            )
-            
-            # Use a simple crawl config for the summary generation
-            summary_config = CrawlerRunConfig(
-                extraction_strategy=llm_strategy,
-                stream=True
-            )
-            
-            # Create a temporary result object for LLM processing
-            # We'll use the crawler's LLM functionality directly
+            # Use litellm directly for summary generation
             try:
-                # Use litellm directly for summary generation
                 response = await litellm.acompletion(
                     model="gemini/gemini-2.0-flash",
                     messages=[
@@ -328,7 +307,7 @@ async def _get_website_summaries(base_urls: List[str], important_links_map: Dict
 
 # --- New API Endpoint ---
 @app.post("/extract", response_model=ContactExtractionResponse)
-async def extract_contact_info(request: URLRequest):
+async def extract(request: URLRequest):
     """
     Crawls website footers, finds important internal links, and uses a
     Regex+LLM pipeline to extract structured contact information and generate

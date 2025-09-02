@@ -29,9 +29,9 @@ async def lifespan(app: FastAPI):
         await crawler.close()
 
 app = FastAPI(
-    title="Contact Extractor API",
-    description="An API to find and extract contact information from important internal pages.",
-    version="2.0.0",
+    title="Contact Extractor & Website Summary API",
+    description="An API to find and extract contact information from important internal pages and generate comprehensive website summaries using AI.",
+    version="2.1.0",
     lifespan=lifespan
 )
 
@@ -52,6 +52,7 @@ class ContactExtractionResponse(BaseModel):
 
 class PerSourceResult(BaseModel):
     socials: List[str]
+    summary: str = Field(default="", description="Website summary for this source")
     contacts: List[ContactInfo]
 
 # --- (LinkProcessor from previous step remains the same) ---
@@ -60,6 +61,10 @@ class LinkProcessor:
         'contact', 'about', 'team', 'careers', 'jobs', 'support', 'help',
         'privacy', 'terms', 'legal', 'policy', 'faq', 'shipping', 'returns',
         'locations', 'investor', 'press', 'media', 'news', 'blog', 'partnership'
+    }
+    INFO_KEYWORDS = {
+        'about', 'privacy', 'terms', 'legal', 'policy', 'faq',
+        'shipping', 'returns', 'investor', 'news', 'blog'
     }
     SOCIAL_MEDIA_DOMAINS = {
         'facebook.com', 'instagram.com', 'twitter.com', 'x.com', 'linkedin.com',
@@ -82,6 +87,19 @@ class LinkProcessor:
     def process_important_links(cls, internal_links: List[str]) -> List[str]:
         important = {link for link in internal_links if cls.is_important_internal(link)}
         return list(important)
+    
+    @classmethod
+    def is_info_page(cls, url: str) -> bool:
+        try:
+            path_and_query = urlparse(url).path + urlparse(url).query
+            return any(keyword in path_and_query.lower() for keyword in cls.INFO_KEYWORDS)
+        except (ValueError, TypeError): 
+            return False
+    
+    @classmethod
+    def process_info_links(cls, internal_links: List[str]) -> List[str]:
+        info_links = {link for link in internal_links if cls.is_info_page(link)}
+        return list(info_links)
 
 # --- Crawler Instance & Lifecycle ---
 crawler = AsyncWebCrawler()
@@ -179,16 +197,154 @@ async def _get_important_internal_links(base_urls: List[str]) -> (Dict[str, List
 
     return important_links_map, social_links_map, errors
 
+# --- Website Summary Functionality ---
+async def _get_website_summaries(base_urls: List[str], important_links_map: Dict[str, List[str]]) -> Dict[str, str]:
+    """
+    Scrapes informational pages from each website and generates a comprehensive summary
+    using LLM analysis of the combined markdown content.
+    """
+    website_summaries = {}
+    
+    for base_url in base_urls:
+        try:
+            # Get all important pages for this base URL
+            important_pages = important_links_map.get(base_url, [])
+            
+            # Filter to only informational pages using INFO_KEYWORDS
+            info_pages = LinkProcessor.process_info_links(important_pages)
+            
+            # Always include the homepage for context
+            all_pages_to_crawl = [base_url] + info_pages
+            # Remove duplicates while preserving order
+            all_pages_to_crawl = list(dict.fromkeys(all_pages_to_crawl))
+            
+            if not all_pages_to_crawl:
+                continue
+                
+            # Configure crawler to extract markdown content
+            markdown_config = CrawlerRunConfig(
+                stream=True,
+                # Use markdown extraction to get clean, structured content
+                extraction_strategy=None  # We'll get the markdown from result.markdown
+            )
+            
+            # Collect all markdown content from important pages
+            combined_markdown = []
+            page_titles = []
+            
+            async for result in await crawler.arun_many(all_pages_to_crawl, config=markdown_config):
+                if result.success and result.markdown:
+                    # Extract page title from HTML or use URL path
+                    page_title = "Homepage"
+                    try:
+                        if hasattr(result, 'html') and result.html:
+                            # Extract title from HTML
+                            title_match = re.search(r'<title[^>]*>(.*?)</title>', result.html, re.IGNORECASE | re.DOTALL)
+                            if title_match:
+                                page_title = title_match.group(1).strip()
+                            else:
+                                # Fallback to URL path
+                                page_title = urlparse(result.url).path.strip('/') or "Homepage"
+                        else:
+                            page_title = urlparse(result.url).path.strip('/') or "Homepage"
+                    except Exception:
+                        page_title = urlparse(result.url).path.strip('/') or "Homepage"
+                    
+                    page_titles.append(page_title)
+                    combined_markdown.append(f"## {page_title}\n{result.markdown}\n")
+            
+            if not combined_markdown:
+                continue
+                
+            # Combine all markdown content
+            full_content = "\n".join(combined_markdown)
+            
+            # Truncate if too long (LLM context limits)
+            if len(full_content) > 50000:  # Rough limit to stay within token limits
+                full_content = full_content[:50000] + "\n\n[Content truncated due to length]"
+            
+            # Generate summary using LLM
+            llm_provider_config = LLMConfig(
+                provider="gemini/gemini-2.0-flash",
+                api_token="env:GEMINI_API_KEY",
+            )
+            
+            summary_instruction = f"""
+            Analyze the following website content and provide a comprehensive summary in plain text format. The content includes informational pages from: {', '.join(page_titles)}.
+            
+            Write a natural, flowing summary that covers:
+            - Company/Organization Overview
+            - Main Products/Services
+            - Key Features or Offerings
+            - Target Audience
+            - Unique Value Propositions
+            - Notable partnerships, certifications, or achievements
+            - Business policies, terms, and important information
+            
+            IMPORTANT: Write in plain text only. Do not use any markdown formatting, bullet points, numbered lists, or special characters like ** or ##. Write as natural paragraphs that flow together.
+            
+            Keep the summary concise but informative (2-3 paragraphs maximum).
+            Focus on the most important and distinctive aspects of the business based on the informational content.
+            """
+            
+            llm_strategy = LLMExtractionStrategy(
+                llm_config=llm_provider_config,
+                schema={"type": "object", "properties": {"summary": {"type": "string"}}},
+                instruction=summary_instruction,
+                input_format="fit_markdown"
+            )
+            
+            # Use a simple crawl config for the summary generation
+            summary_config = CrawlerRunConfig(
+                extraction_strategy=llm_strategy,
+                stream=True
+            )
+            
+            # Create a temporary result object for LLM processing
+            # We'll use the crawler's LLM functionality directly
+            try:
+                # Use litellm directly for summary generation
+                response = await litellm.acompletion(
+                    model="gemini/gemini-2.0-flash",
+                    messages=[
+                        {"role": "system", "content": summary_instruction},
+                        {"role": "user", "content": full_content}
+                    ],
+                    api_key=os.getenv("GEMINI_API_KEY")
+                )
+                
+                summary = response.choices[0].message.content.strip()
+                website_summaries[base_url] = summary
+                
+            except Exception as e:
+                print(f"Error generating summary for {base_url}: {str(e)}")
+                website_summaries[base_url] = f"Summary generation failed: {str(e)}"
+                
+        except Exception as e:
+            print(f"Error processing website summary for {base_url}: {str(e)}")
+            website_summaries[base_url] = f"Error processing website: {str(e)}"
+    
+    return website_summaries
+
 # --- New API Endpoint ---
-@app.post("/extract-contact-info", response_model=ContactExtractionResponse)
+@app.post("/extract", response_model=ContactExtractionResponse)
 async def extract_contact_info(request: URLRequest):
     """
     Crawls website footers, finds important internal links, and uses a
-    Regex+LLM pipeline to extract structured contact information.
+    Regex+LLM pipeline to extract structured contact information and generate
+    comprehensive website summaries.
+    
+    Returns:
+    - contacts_found: Social media links and contact information per website
+    - website_summaries: AI-generated summaries of each website's content
+    - errors: Any errors encountered during processing
     """
     # === STEP 1: Find all "important" internal links from the footers ===
     important_links_map, social_links_map, errors = await _get_important_internal_links(request.urls)
     all_important_urls = list(set(url for url_list in important_links_map.values() for url in url_list))
+    
+    # === STEP 1.5: Generate website summaries ===
+    website_summaries = await _get_website_summaries(request.urls, important_links_map)
 
     if not all_important_urls:
         # Return just socials (if any) in the new structure
@@ -196,10 +352,11 @@ async def extract_contact_info(request: URLRequest):
         for base in request.urls:
             contacts_found[base] = PerSourceResult(
                 socials=social_links_map.get(base, []),
+                summary=website_summaries.get(base, ""),
                 contacts=[]
             )
         # Trim empty sources
-        contacts_found = {k: v for k, v in contacts_found.items() if (v.socials or v.contacts)}
+        contacts_found = {k: v for k, v in contacts_found.items() if (v.socials or v.contacts or v.summary)}
         return ContactExtractionResponse(contacts_found=contacts_found, errors=errors)
 
     # === STEP 2: Pre-filtering with Regex ===
@@ -216,7 +373,16 @@ async def extract_contact_info(request: URLRequest):
 
     if not urls_with_contacts:
         errors["summary"] = "Found important pages, but none contained email or phone patterns."
-        return ContactExtractionResponse(contacts_found={}, errors=errors)
+        # Return summaries even if no contacts found
+        contacts_found: Dict[str, PerSourceResult] = {}
+        for base in request.urls:
+            contacts_found[base] = PerSourceResult(
+                socials=social_links_map.get(base, []),
+                summary=website_summaries.get(base, ""),
+                contacts=[]
+            )
+        contacts_found = {k: v for k, v in contacts_found.items() if (v.socials or v.contacts or v.summary)}
+        return ContactExtractionResponse(contacts_found=contacts_found, errors=errors)
         
     # === STEP 3: Structured Extraction with LLM ===
     llm_provider_config = LLMConfig(
@@ -276,14 +442,15 @@ async def extract_contact_info(request: URLRequest):
             unique_list.append(contact)
         final_contacts[base_url] = unique_list
 
-    # Build final response with socials and contacts
+    # Build final response with socials, summaries, and contacts
     contacts_found: Dict[str, PerSourceResult] = {}
     for base in request.urls:
         contacts_found[base] = PerSourceResult(
             socials=social_links_map.get(base, []),
+            summary=website_summaries.get(base, ""),
             contacts=final_contacts.get(base, [])
         )
-    # Remove entries that have neither socials nor contacts
-    contacts_found = {k: v for k, v in contacts_found.items() if (v.socials or v.contacts)}
+    # Remove entries that have neither socials, contacts, nor summaries
+    contacts_found = {k: v for k, v in contacts_found.items() if (v.socials or v.contacts or v.summary)}
 
     return ContactExtractionResponse(contacts_found=contacts_found, errors=errors)

@@ -47,8 +47,12 @@ class ContactInfo(BaseModel):
     phone: Optional[str] = Field(None, description="The contact's phone number.")
 
 class ContactExtractionResponse(BaseModel):
-    contacts_found: Dict[str, List[ContactInfo]]
+    contacts_found: Dict[str, "PerSourceResult"]
     errors: Dict[str, str]
+
+class PerSourceResult(BaseModel):
+    socials: List[str]
+    contacts: List[ContactInfo]
 
 # --- (LinkProcessor from previous step remains the same) ---
 class LinkProcessor:
@@ -83,7 +87,7 @@ class LinkProcessor:
 crawler = AsyncWebCrawler()
 
 # --- Reusable Crawler Logic ---
-async def _get_important_internal_links(base_urls: List[str]) -> Dict[str, List[str]]:
+async def _get_important_internal_links(base_urls: List[str]) -> (Dict[str, List[str]], Dict[str, List[str]]):
     """
     Crawls the given URLs to find important internal links from the footer area.
     
@@ -101,6 +105,7 @@ async def _get_important_internal_links(base_urls: List[str]) -> Dict[str, List[
     )
     
     important_links_map: Dict[str, List[str]] = {}
+    social_links_map: Dict[str, List[str]] = {}
     errors = {}
     urls_needing_fallback = []
 
@@ -108,10 +113,29 @@ async def _get_important_internal_links(base_urls: List[str]) -> Dict[str, List[
     async for result in await crawler.arun_many(base_urls, config=primary_config):
         if result.success:
             internal_links = [urljoin(result.url, link.get('href', '')) for link in result.links.get("internal", [])]
+            external_links = [link.get('href', '') for link in result.links.get("external", [])]
             
             if internal_links:
                 # Success! Found links with the specific selector.
                 important_links_map[result.url] = LinkProcessor.process_important_links(internal_links)
+            # Collect social links regardless of whether internal links were found
+            social_links = []
+            for href in external_links:
+                try:
+                    if href and LinkProcessor.is_social_media(href):
+                        social_links.append(href)
+                except Exception:
+                    continue
+            if social_links:
+                # De-duplicate while preserving insertion order
+                seen_hrefs = set()
+                dedup_socials = []
+                for href in social_links:
+                    if href in seen_hrefs:
+                        continue
+                    seen_hrefs.add(href)
+                    dedup_socials.append(href)
+                social_links_map[result.url] = dedup_socials
             else:
                 # The crawl succeeded but found no links, suggesting the selector failed.
                 # Add this URL to the list for a fallback attempt.
@@ -129,13 +153,31 @@ async def _get_important_internal_links(base_urls: List[str]) -> Dict[str, List[
             if result.success:
                 # Heuristic: Assume the last 40 internal links are in the footer/bottom of the page.
                 all_internal_links = [urljoin(result.url, link.get('href', '')) for link in result.links.get("internal", [])]
+                all_external_links = [link.get('href', '') for link in result.links.get("external", [])]
                 footer_proxy_links = all_internal_links[-40:] # Take the last 40 links
                 
                 important_links_map[result.url] = LinkProcessor.process_important_links(footer_proxy_links)
+                # Socials from fallback crawl
+                social_links = []
+                for href in all_external_links:
+                    try:
+                        if href and LinkProcessor.is_social_media(href):
+                            social_links.append(href)
+                    except Exception:
+                        continue
+                if social_links:
+                    seen_hrefs = set()
+                    dedup_socials = []
+                    for href in social_links:
+                        if href in seen_hrefs:
+                            continue
+                        seen_hrefs.add(href)
+                        dedup_socials.append(href)
+                    social_links_map[result.url] = dedup_socials
             else:
                  errors[result.url] = f"Failed to get footer links on fallback pass: {result.error_message}"
 
-    return important_links_map, errors
+    return important_links_map, social_links_map, errors
 
 # --- New API Endpoint ---
 @app.post("/extract-contact-info", response_model=ContactExtractionResponse)
@@ -145,11 +187,20 @@ async def extract_contact_info(request: URLRequest):
     Regex+LLM pipeline to extract structured contact information.
     """
     # === STEP 1: Find all "important" internal links from the footers ===
-    important_links_map, errors = await _get_important_internal_links(request.urls)
+    important_links_map, social_links_map, errors = await _get_important_internal_links(request.urls)
     all_important_urls = list(set(url for url_list in important_links_map.values() for url in url_list))
 
     if not all_important_urls:
-        return ContactExtractionResponse(contacts_found={}, errors=errors)
+        # Return just socials (if any) in the new structure
+        contacts_found: Dict[str, PerSourceResult] = {}
+        for base in request.urls:
+            contacts_found[base] = PerSourceResult(
+                socials=social_links_map.get(base, []),
+                contacts=[]
+            )
+        # Trim empty sources
+        contacts_found = {k: v for k, v in contacts_found.items() if (v.socials or v.contacts)}
+        return ContactExtractionResponse(contacts_found=contacts_found, errors=errors)
 
     # === STEP 2: Pre-filtering with Regex ===
     regex_config = CrawlerRunConfig(
@@ -225,4 +276,14 @@ async def extract_contact_info(request: URLRequest):
             unique_list.append(contact)
         final_contacts[base_url] = unique_list
 
-    return ContactExtractionResponse(contacts_found=final_contacts, errors=errors)
+    # Build final response with socials and contacts
+    contacts_found: Dict[str, PerSourceResult] = {}
+    for base in request.urls:
+        contacts_found[base] = PerSourceResult(
+            socials=social_links_map.get(base, []),
+            contacts=final_contacts.get(base, [])
+        )
+    # Remove entries that have neither socials nor contacts
+    contacts_found = {k: v for k, v in contacts_found.items() if (v.socials or v.contacts)}
+
+    return ContactExtractionResponse(contacts_found=contacts_found, errors=errors)

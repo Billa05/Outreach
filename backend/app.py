@@ -8,7 +8,8 @@ from contextlib import asynccontextmanager
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
 import json
-
+import litellm
+# litellm._turn_on_debug()
 # Import necessary components from crawl4ai
 from crawl4ai import (
     AsyncWebCrawler,
@@ -175,7 +176,7 @@ async def extract_contact_info(request: URLRequest):
     llm_strategy = LLMExtractionStrategy(
         llm_config=llm_provider_config,
         schema=ContactInfo.model_json_schema(),
-        instruction="Extract all contact information details from the text. For each person, provide their name, designation, email, and phone number.",
+        instruction="Extract all contact information details from the text. For each person, provide their name, designation, email, and phone number. Do not include duplicate contacts. If two records share the same email or phone number, keep only the one that contains more information (name or designation) and discard the less informative one. Ensure the final output has only unique and most complete records.",
         input_format="fit_markdown"
     )
     
@@ -216,6 +217,8 @@ async def extract_contact_info(request: URLRequest):
         unique_list: List[ContactInfo] = []
         for contact in contacts:
             key = _contact_key(contact)
+            if contact.email == None and contact.phone == None:
+                continue
             if key in seen:
                 continue
             seen.add(key)

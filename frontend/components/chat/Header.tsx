@@ -1,7 +1,8 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Menu, ChevronDown } from "lucide-react"
+import { Menu } from "lucide-react"
+import Link from "next/link"
 
 type HeaderProps = {
   showOpenSidebarButton: boolean
@@ -23,7 +24,9 @@ export function Header({ showOpenSidebarButton, onOpenSidebar }: HeaderProps) {
           </Button>
         )}
         <div className="flex items-center gap-2 min-w-0">
-          <span className="font-medium truncate">Outreach</span>
+          <Link href="/" className="font-medium truncate hover:underline">
+            Outreach
+          </Link>
         </div>
       </div>
 

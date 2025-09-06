@@ -41,6 +41,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
 # --- API Endpoint ---
 @app.post("/extract", response_model=ContactExtractionResponse)
 async def extract(request: QueryRequest):
@@ -58,7 +61,7 @@ async def extract(request: QueryRequest):
     collected_links: List[str] = []
     for q in queries:
         collected_links.extend(get_top_n_links(q, num_links=2))
-    # Normalize to homepage and dedupe while preserving order
+    # Normalize to homepage and dedupe 
     seen: set = set()
     base_inputs: List[str] = []
     for link in collected_links:

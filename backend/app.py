@@ -22,6 +22,7 @@ from services import (
     _get_website_summaries,
     generate_search_queries,
     get_top_n_links,
+    normalize_to_homepage,
 )
 
 # --- FastAPI App Setup ---
@@ -57,14 +58,15 @@ async def extract(request: QueryRequest):
     collected_links: List[str] = []
     for q in queries:
         collected_links.extend(get_top_n_links(q, num_links=2))
-    # Dedupe while preserving order
+    # Normalize to homepage and dedupe while preserving order
     seen: set = set()
     base_inputs: List[str] = []
     for link in collected_links:
-        if link in seen:
+        homepage = normalize_to_homepage(link)
+        if homepage in seen:
             continue
-        seen.add(link)
-        base_inputs.append(link)
+        seen.add(homepage)
+        base_inputs.append(homepage)
     if not base_inputs:
         raise HTTPException(status_code=404, detail="No search results found to process")
 

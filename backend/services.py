@@ -2,7 +2,7 @@ import re
 import os
 import json
 from typing import List, Dict
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urlparse, urljoin, urlunparse
 
 import litellm
 from crawl4ai import (
@@ -285,5 +285,20 @@ def get_top_n_links(query: str, num_links: int = 2) -> List[str]:
                     links.append(href)
     except Exception as e:
         print(f"Google CSE error: {e}")
+    print(links)
     return links
+
+
+def normalize_to_homepage(url: str) -> str:
+    """
+    Reduce any URL to its homepage: scheme + netloc with trailing slash.
+    Example: https://www.aorn.org/article/x -> https://www.aorn.org/
+    """
+    try:
+        parsed = urlparse(url)
+        if not parsed.scheme or not parsed.netloc:
+            return url
+        return urlunparse((parsed.scheme, parsed.netloc, '/', '', '', ''))
+    except Exception:
+        return url
 

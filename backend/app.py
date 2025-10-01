@@ -18,8 +18,8 @@ from schemas import (
 )
 from services import (
     crawler,
-    _get_important_internal_links,
-    _get_website_summaries,
+    get_important_internal_links,
+    get_website_summaries,
     generate_search_queries,
     get_top_n_links,
     normalize_to_homepage,
@@ -74,12 +74,12 @@ async def extract(request: QueryRequest):
         raise HTTPException(status_code=404, detail="No search results found to process")
 
     # === STEP 1: Find all "important" internal links from the footers ===
-    important_links_map, social_links_map, link_errors = await _get_important_internal_links(base_inputs)
+    important_links_map, social_links_map, link_errors = await get_important_internal_links(base_inputs)
     errors.update(link_errors)
     all_important_urls = list(set(url for url_list in important_links_map.values() for url in url_list))
     
     # === STEP 1.5: Generate website summaries ===
-    website_summaries = await _get_website_summaries(base_inputs, important_links_map)
+    website_summaries = await get_website_summaries(base_inputs, important_links_map)
 
     if not all_important_urls:
         # Return just socials (if any) in the new structure
@@ -99,7 +99,7 @@ async def extract(request: QueryRequest):
         extraction_strategy=RegexExtractionStrategy(
             pattern=RegexExtractionStrategy.Email | RegexExtractionStrategy.PhoneUS
         ),
-        stream=True  # FIXED: Enable streaming to use with "async for"
+        stream=True
     )
     urls_with_contacts = set()
     async for result in await crawler.arun_many(all_important_urls, config=regex_config):
@@ -121,7 +121,7 @@ async def extract(request: QueryRequest):
         
     # === STEP 3: Structured Extraction with LLM ===
     llm_provider_config = LLMConfig(
-        provider="gemini/gemini-2.0-flash",
+        provider="gemini/gemini-2.0-flash-lite",
         api_token="env:GEMINI_API_KEY",
     )
     
@@ -134,7 +134,7 @@ async def extract(request: QueryRequest):
     
     llm_crawl_config = CrawlerRunConfig(
         extraction_strategy=llm_strategy,
-        stream=True # FIXED: Enable streaming here as well
+        stream=True 
     )
     
     final_contacts: Dict[str, List[ContactInfo]] = {url: [] for url in base_inputs}
@@ -157,7 +157,7 @@ async def extract(request: QueryRequest):
     final_contacts = {k: v for k, v in final_contacts.items() if v}
     
     # === STEP 4: Dedupe contacts per base URL (case-insensitive for emails) ===
-    def _contact_key(c: ContactInfo):
+    def contact_key(c: ContactInfo):
         name_key = (c.name or '').strip()
         designation_key = (c.designation or '').strip()
         email_key = (c.email or '').strip().lower()
@@ -168,7 +168,7 @@ async def extract(request: QueryRequest):
         seen = set()
         unique_list: List[ContactInfo] = []
         for contact in contacts:
-            key = _contact_key(contact)
+            key = contact_key(contact)
             if contact.email == None and contact.phone == None:
                 continue
             if key in seen:

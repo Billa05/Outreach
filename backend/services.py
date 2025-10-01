@@ -14,13 +14,10 @@ from googleapiclient.discovery import build
 
 class LinkProcessor:
     IMPORTANT_KEYWORDS = {
-        'contact', 'about', 'team', 'careers', 'jobs', 'support', 'help',
-        'privacy', 'terms', 'legal', 'policy', 'faq', 'shipping', 'returns',
-        'locations', 'investor', 'press', 'media', 'news', 'blog', 'partnership'
+        'contact', 'team', 'support', 'help', 'about', 'locations', 'careers', 'partnership'
     }
     INFO_KEYWORDS = {
-        'about', 'privacy', 'terms', 'legal', 'policy', 'faq',
-        'shipping', 'returns', 'investor', 'news', 'blog'
+        'about', 'privacy', 'terms', 'faq'
     }
     SOCIAL_MEDIA_DOMAINS = {
         'facebook.com', 'instagram.com', 'twitter.com', 'x.com', 'linkedin.com',
@@ -63,7 +60,7 @@ class LinkProcessor:
 crawler = AsyncWebCrawler()
 
 
-async def _get_important_internal_links(base_urls: List[str]) -> (Dict[str, List[str]], Dict[str, List[str]], Dict[str, str]):
+async def get_important_internal_links(base_urls: List[str]) -> tuple[Dict[str, List[str]], Dict[str, List[str]], Dict[str, str]]:
     primary_config = CrawlerRunConfig(
         css_selector="footer, #footer, .footer, [role='contentinfo']",
         stream=True
@@ -134,7 +131,7 @@ async def _get_important_internal_links(base_urls: List[str]) -> (Dict[str, List
     return important_links_map, social_links_map, errors
 
 
-async def _get_website_summaries(base_urls: List[str], important_links_map: Dict[str, List[str]]) -> Dict[str, str]:
+async def get_website_summaries(base_urls: List[str], important_links_map: Dict[str, List[str]]) -> Dict[str, str]:
     website_summaries: Dict[str, str] = {}
     
     for base_url in base_urls:
@@ -199,7 +196,7 @@ async def _get_website_summaries(base_urls: List[str], important_links_map: Dict
             
             try:
                 response = await litellm.acompletion(
-                    model="gemini/gemini-2.0-flash",
+                    model="gemini/gemini-2.0-flash-lite",
                     messages=[
                         {"role": "system", "content": summary_instruction},
                         {"role": "user", "content": full_content}
@@ -227,7 +224,7 @@ async def generate_search_queries(user_query: str) -> List[str]:
     avoid duplications. Return ONLY a strict JSON array of 5 strings."""
     try:
         response = await litellm.acompletion(
-            model="gemini/gemini-2.0-flash",
+            model="gemini/gemini-2.0-flash-lite",
             messages=[
                 {"role": "system", "content": instruction},
                 {"role": "user", "content": user_query},

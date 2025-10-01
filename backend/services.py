@@ -196,7 +196,7 @@ async def get_website_summaries(base_urls: List[str], important_links_map: Dict[
             
             try:
                 response = await litellm.acompletion(
-                    model="gemini/gemini-2.0-flash-lite",
+                    model="gemini/gemini-2.0-flash",
                     messages=[
                         {"role": "system", "content": summary_instruction},
                         {"role": "user", "content": full_content}
@@ -224,7 +224,7 @@ async def generate_search_queries(user_query: str) -> List[str]:
     avoid duplications. Return ONLY a strict JSON array of 5 strings."""
     try:
         response = await litellm.acompletion(
-            model="gemini/gemini-2.0-flash-lite",
+            model="gemini/gemini-2.0-flash",
             messages=[
                 {"role": "system", "content": instruction},
                 {"role": "user", "content": user_query},

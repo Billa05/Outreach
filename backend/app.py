@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
 from typing import List, Dict
 import json
+import litellm
 from crawl4ai import (
     CrawlerRunConfig,
     LLMConfig,
@@ -28,6 +29,8 @@ from services import (
 # --- FastAPI App Setup ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Enable LiteLLM debugging
+    litellm._turn_on_debug()
     await crawler.start()
     try:
         yield
@@ -60,7 +63,7 @@ async def extract(request: QueryRequest):
         raise HTTPException(status_code=500, detail=f"Failed to generate search queries: {str(e)}")
     collected_links: List[str] = []
     for q in queries:
-        collected_links.extend(get_top_n_links(q, num_links=2))
+        collected_links.extend(get_top_n_links(q, num_links=1))
     # Normalize to homepage and dedupe 
     seen: set = set()
     base_inputs: List[str] = []
@@ -121,7 +124,7 @@ async def extract(request: QueryRequest):
         
     # === STEP 3: Structured Extraction with LLM ===
     llm_provider_config = LLMConfig(
-        provider="gemini/gemini-2.0-flash-lite",
+        provider="gemini/gemini-2.0-flash",
         api_token="env:GEMINI_API_KEY",
     )
     

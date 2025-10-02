@@ -4,5 +4,6 @@ crawl4ai
 pydantic
 pydantic-settings
 python-dotenv
-google-api-python-client
+groq
 litellm
+exa_py

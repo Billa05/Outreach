@@ -4,7 +4,6 @@ from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
 from typing import List, Dict
 import json
-import litellm
 from crawl4ai import (
     CrawlerRunConfig,
     LLMConfig,
@@ -19,18 +18,14 @@ from schemas import (
 )
 from services import (
     crawler,
+    search_with_exa,
     get_important_internal_links,
-    get_website_summaries,
-    generate_search_queries,
-    get_top_n_links,
     normalize_to_homepage,
 )
 
 # --- FastAPI App Setup ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Enable LiteLLM debugging
-    litellm._turn_on_debug()
     await crawler.start()
     try:
         yield
@@ -58,21 +53,9 @@ async def extract(request: QueryRequest):
     errors: Dict[str, str] = {}
     user_query = request.query
     try:
-        queries = await generate_search_queries(user_query)
+        base_inputs, website_summaries = await search_with_exa(user_query)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate search queries: {str(e)}")
-    collected_links: List[str] = []
-    for q in queries:
-        collected_links.extend(get_top_n_links(q, num_links=1))
-    # Normalize to homepage and dedupe 
-    seen: set = set()
-    base_inputs: List[str] = []
-    for link in collected_links:
-        homepage = normalize_to_homepage(link)
-        if homepage in seen:
-            continue
-        seen.add(homepage)
-        base_inputs.append(homepage)
+        raise HTTPException(status_code=500, detail=f"Failed to search with exa: {str(e)}")
     if not base_inputs:
         raise HTTPException(status_code=404, detail="No search results found to process")
 
@@ -81,9 +64,6 @@ async def extract(request: QueryRequest):
     errors.update(link_errors)
     all_important_urls = list(set(url for url_list in important_links_map.values() for url in url_list))
     
-    # === STEP 1.5: Generate website summaries ===
-    website_summaries = await get_website_summaries(base_inputs, important_links_map)
-
     if not all_important_urls:
         # Return just socials (if any) in the new structure
         contacts_found: Dict[str, PerSourceResult] = {}

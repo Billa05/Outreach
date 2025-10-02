@@ -7,3 +7,7 @@ python-dotenv
 groq
 litellm
 exa_py
+joblib
+sentence-transformers
+numpy
+nltk

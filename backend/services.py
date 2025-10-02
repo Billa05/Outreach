@@ -33,6 +33,9 @@ class LinkProcessor:
             return any(social_domain in domain for social_domain in cls.SOCIAL_MEDIA_DOMAINS)
         except (ValueError, TypeError):
             return False
+    @classmethod
+    def process_important_links(cls, links: List[str]) -> List[str]:
+        return [link for link in links if cls.is_important_internal(link)]
 
 
 crawler = AsyncWebCrawler()

@@ -17,6 +17,7 @@ class PerSourceResult(BaseModel):
     socials: List[str]
     summary: str = Field(default="", description="Website summary for this source")
     contacts: List[ContactInfo]
+    fit_score: float = Field(default=0.0, description="Fit score percentage for the lead")
 
 
 class ContactExtractionResponse(BaseModel):

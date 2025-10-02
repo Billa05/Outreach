@@ -4,6 +4,8 @@ from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
 from typing import List, Dict
 import json
+from pydantic import BaseModel
+
 from crawl4ai import (
     CrawlerRunConfig,
     LLMConfig,
@@ -20,8 +22,8 @@ from services import (
     crawler,
     search_with_exa,
     get_important_internal_links,
-    normalize_to_homepage,
 )
+from lead_scorer import LeadRequest, predict_fit_score
 
 # --- FastAPI App Setup ---
 @asynccontextmanager
@@ -68,10 +70,12 @@ async def extract(request: QueryRequest):
         # Return just socials (if any) in the new structure
         contacts_found: Dict[str, PerSourceResult] = {}
         for base in base_inputs:
+            fit_score = predict_fit_score(user_query, {"org_summary": website_summaries.get(base, ""), "contact_info": {}})
             contacts_found[base] = PerSourceResult(
                 socials=social_links_map.get(base, []),
                 summary=website_summaries.get(base, ""),
-                contacts=[]
+                contacts=[],
+                fit_score=fit_score
             )
         # Trim empty sources
         contacts_found = {k: v for k, v in contacts_found.items() if (v.socials or v.contacts or v.summary)}
@@ -94,11 +98,14 @@ async def extract(request: QueryRequest):
         # Return summaries even if no contacts found
         contacts_found: Dict[str, PerSourceResult] = {}
         for base in base_inputs:
+            fit_score = predict_fit_score(user_query, {"org_summary": website_summaries.get(base, ""), "contact_info": {}})
             contacts_found[base] = PerSourceResult(
                 socials=social_links_map.get(base, []),
                 summary=website_summaries.get(base, ""),
-                contacts=[]
+                contacts=[],
+                fit_score=fit_score
             )
+        # Trim empty sources
         contacts_found = {k: v for k, v in contacts_found.items() if (v.socials or v.contacts or v.summary)}
         return ContactExtractionResponse(contacts_found=contacts_found, errors=errors)
         
@@ -163,12 +170,32 @@ async def extract(request: QueryRequest):
     # Build final response with socials, summaries, and contacts
     contacts_found: Dict[str, PerSourceResult] = {}
     for base in base_inputs:
+        contacts = final_contacts.get(base, [])
+        if contacts:
+            contact = contacts[0]
+            contact_info = {
+                "email": contact.email,
+                "phone": contact.phone,
+                "contact_title": contact.designation
+            }
+        else:
+            contact_info = {}
+        fit_score = predict_fit_score(user_query, {"org_summary": website_summaries.get(base, ""), "contact_info": contact_info})
         contacts_found[base] = PerSourceResult(
             socials=social_links_map.get(base, []),
             summary=website_summaries.get(base, ""),
-            contacts=final_contacts.get(base, [])
+            contacts=contacts,
+            fit_score=fit_score
         )
     # Remove entries that have neither socials, contacts, nor summaries
     contacts_found = {k: v for k, v in contacts_found.items() if (v.socials or v.contacts or v.summary)}
 
     return ContactExtractionResponse(contacts_found=contacts_found, errors=errors)
+
+@app.post("/score")
+async def score_lead(request: LeadRequest):
+    """
+    Score a lead based on query, organization summary, and contact info.
+    """
+    fit_score = predict_fit_score(request.query, {"org_summary": request.org_summary, "contact_info": request.contact_info})
+    return {"fit_score": fit_score}

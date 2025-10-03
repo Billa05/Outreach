@@ -12,10 +12,32 @@ export default function ProcessPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      router.push("/results")
-    }, 2000)
-    return () => clearTimeout(timer)
+    const fetchData = async () => {
+      const query = localStorage.getItem('userQuery')
+      if (!query) {
+        router.push('/')
+        return
+      }
+
+      try {
+        const response = await fetch('http://localhost:8000/extract', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ query }),
+        })
+        const data = await response.json()
+        localStorage.setItem('extractionResults', JSON.stringify(data))
+        router.push("/results")
+      } catch (error) {
+        console.error('Error fetching data:', error)
+        // Handle error, maybe show a message or retry
+        router.push("/results") // Still go to results even on error
+      }
+    }
+
+    fetchData()
   }, [router])
 
   return (

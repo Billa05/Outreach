@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from typing import List, Dict
 import json
 from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 
 from crawl4ai import (
     CrawlerRunConfig,
@@ -39,6 +40,14 @@ app = FastAPI(
     description="An API to find and extract contact information from important internal pages and generate comprehensive website summaries using AI.",
     version="2.1.0",
     lifespan=lifespan
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
 )
 
 @app.get("/")

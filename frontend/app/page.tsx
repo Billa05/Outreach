@@ -19,6 +19,8 @@ export default function ChatGPTClone() {
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (input.trim() || uploadedFiles.length > 0) {
+      localStorage.setItem('userQuery', input.trim())
+      localStorage.setItem('uploadedFiles', JSON.stringify(uploadedFiles.map(f => f.name)))
       router.push("/process")
     }
   }

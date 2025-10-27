@@ -11,3 +11,4 @@ joblib
 sentence-transformers
 numpy
 nltk
+psycopg2-binary

@@ -1,11 +1,16 @@
 from urllib.parse import urlparse, urljoin
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from contextlib import asynccontextmanager
-from typing import List, Dict
+from typing import List, Dict, Optional
 import json
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+from datetime import datetime, timedelta
+from sqlalchemy.orm import Session
 
 from crawl4ai import (
     CrawlerRunConfig,
@@ -18,6 +23,10 @@ from schemas import (
     ContactInfo,
     ContactExtractionResponse,
     PerSourceResult,
+    UserCreate,
+    Token,
+    TokenData,
+    FeedbackRequest,
 )
 from services import (
     crawler,
@@ -25,6 +34,58 @@ from services import (
     get_important_internal_links,
 )
 from lead_scorer import LeadRequest, predict_fit_score
+from db import User, Query, Response, get_db
+
+# Auth setup
+SECRET_KEY = "your-secret-key"  # Replace with a secure key, e.g., from env
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="signin")
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def authenticate_user(db: Session, email: str, password: str):
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        return False
+    if not verify_password(password, user.password_hash):
+        return False
+    return user
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+        token_data = TokenData(email=email)
+    except JWTError:
+        raise credentials_exception
+    user = db.query(User).filter(User.email == token_data.email).first()
+    if user is None:
+        raise credentials_exception
+    return user
 
 # --- FastAPI App Setup ---
 @asynccontextmanager
@@ -53,9 +114,41 @@ app.add_middleware(
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
+
+@app.post("/signup", response_model=Token)
+async def signup(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.email == user.email).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    hashed_password = get_password_hash(user.password)
+    db_user = User(email=user.email, password_hash=hashed_password)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/signin", response_model=Token)
+async def signin(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
 # --- API Endpoint ---
 @app.post("/extract", response_model=ContactExtractionResponse)
-async def extract(request: QueryRequest):
+async def extract(request: QueryRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """
     Accepts a text query. Generates 5 search queries with Gemini, fetches top 10 links
     per query via Google, de-duplicates, and runs the extraction pipeline on the
@@ -199,12 +292,46 @@ async def extract(request: QueryRequest):
     # Remove entries that have neither socials, contacts, nor summaries
     contacts_found = {k: v for k, v in contacts_found.items() if (v.socials or v.contacts or v.summary)}
 
+    # Store query and responses in DB
+    db_query = Query(user_id=current_user.id, query_text=user_query)
+    db.add(db_query)
+    db.commit()
+    db.refresh(db_query)
+    for base_url, result in contacts_found.items():
+        db_response = Response(
+            query_id=db_query.id,
+            base_url=base_url,
+            socials=result.socials,
+            summary=result.summary,
+            contacts=[contact.dict() for contact in result.contacts],
+            fit_score=result.fit_score,
+            errors=errors  # Store global errors; can refine later
+        )
+        db.add(db_response)
+        db.flush()  # Assign ID
+        result.response_id = db_response.id
+    db.commit()
+
     return ContactExtractionResponse(contacts_found=contacts_found, errors=errors)
 
 @app.post("/score")
-async def score_lead(request: LeadRequest):
+async def score_lead(request: LeadRequest, current_user: User = Depends(get_current_user)):
     """
     Score a lead based on query, organization summary, and contact info.
     """
     fit_score = predict_fit_score(request.query, {"org_summary": request.org_summary, "contact_info": request.contact_info})
     return {"fit_score": fit_score}
+
+@app.post("/feedback/{response_id}")
+async def add_feedback(response_id: int, feedback: FeedbackRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    Add user feedback to a response for training data.
+    """
+    response = db.query(Response).filter(Response.id == response_id).first()
+    if not response:
+        raise HTTPException(status_code=404, detail="Response not found")
+    if response.query.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    response.user_feedback = feedback.feedback
+    db.commit()
+    return {"message": "Feedback added successfully"}

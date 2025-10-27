@@ -18,6 +18,7 @@ class PerSourceResult(BaseModel):
     summary: str = Field(default="", description="Website summary for this source")
     contacts: List[ContactInfo]
     fit_score: float = Field(default=0.0, description="Fit score percentage for the lead")
+    response_id: Optional[int] = Field(None, description="Database ID for feedback")
 
 
 class ContactExtractionResponse(BaseModel):
@@ -31,5 +32,23 @@ class QueryRequest(BaseModel):
 
 class SearchQueriesResponse(BaseModel):
     queries: List[str]
+
+
+class UserCreate(BaseModel):
+    email: str
+    password: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class TokenData(BaseModel):
+    email: Optional[str] = None
+
+
+class FeedbackRequest(BaseModel):
+    feedback: str  # e.g., "Good Fit", "Bad Fit"
 
 

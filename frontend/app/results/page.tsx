@@ -18,7 +18,10 @@ export default function ResultsPage() {
       const contactsFound = parsed.contacts_found || {}
       const companyList: Company[] = Object.entries(contactsFound).map(([url, result]: [string, any]) => ({
         url,
-        perSourceResult: result
+        perSourceResult: {
+          ...result,
+          response_id: result.response_id
+        }
       }))
       companyList.sort((a, b) => b.perSourceResult.fit_score - a.perSourceResult.fit_score)
       setCompanies(companyList)

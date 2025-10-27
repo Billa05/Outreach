@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Sidebar } from "@/components/chat/Sidebar"
 import { Header } from "@/components/chat/Header"
@@ -15,6 +15,13 @@ export default function ChatGPTClone() {
   const [input, setInput] = useState("")
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const token = localStorage.getItem('access_token')
+    if (!token) {
+      router.push('/auth/login')
+    }
+  }, [router])
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault()

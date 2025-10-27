@@ -1,8 +1,9 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Menu } from "lucide-react"
+import { Menu, LogOut } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 type HeaderProps = {
   showOpenSidebarButton: boolean
@@ -10,6 +11,13 @@ type HeaderProps = {
 }
 
 export function Header({ showOpenSidebarButton, onOpenSidebar }: HeaderProps) {
+  const router = useRouter()
+
+  const handleLogout = () => {
+    localStorage.removeItem('access_token')
+    router.push('/auth/login')
+  }
+
   return (
     <div className="flex items-center justify-between p-4 border-b border-gray-800 flex-shrink-0 bg-black">
       <div className="flex items-center gap-4 min-w-0 flex-1">
@@ -31,6 +39,15 @@ export function Header({ showOpenSidebarButton, onOpenSidebar }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleLogout}
+          className="text-gray-400 hover:text-white hover:bg-gray-800 p-1 h-8 w-8"
+          title="Logout"
+        >
+          <LogOut className="w-4 h-4" />
+        </Button>
         <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0">
           B
         </div>

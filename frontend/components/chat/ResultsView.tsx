@@ -15,6 +15,7 @@ export type PerSourceResult = {
   summary: string
   contacts: ContactInfo[]
   fit_score: number
+  response_id?: number
 }
 
 export type Company = {
@@ -33,6 +34,26 @@ type ResultsViewProps = {
 
 export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies, selectedCompanyUrl, setSelectedCompanyUrl }: ResultsViewProps) {
   const selectedCompany = companies.find((c) => c.url === selectedCompanyUrl) || null
+
+  const handleFeedback = async (responseId: number | undefined, feedback: string) => {
+    if (!responseId) return
+    const token = localStorage.getItem('access_token')
+    if (!token) return
+
+    try {
+      await fetch(`http://localhost:8000/feedback/${responseId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ feedback }),
+      })
+      // Optionally, show a success message or update UI
+    } catch (error) {
+      console.error('Error sending feedback:', error)
+    }
+  }
 
   return (
     <div className="flex-1 flex flex-col md:flex-row min-h-0 bg-black">
@@ -156,7 +177,7 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => console.log('Upvote')}
+                      onClick={() => handleFeedback(selectedCompany.perSourceResult.response_id, 'positive')}
                       className="text-gray-400 hover:text-white hover:bg-gray-800 p-1 h-8 w-8"
                     >
                       <ThumbsUp className="w-4 h-4" />
@@ -164,7 +185,7 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => console.log('Downvote')}
+                      onClick={() => handleFeedback(selectedCompany.perSourceResult.response_id, 'negative')}
                       className="text-gray-400 hover:text-white hover:bg-gray-800 p-1 h-8 w-8"
                     >
                       <ThumbsDown className="w-4 h-4" />

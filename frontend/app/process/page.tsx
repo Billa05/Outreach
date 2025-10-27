@@ -12,6 +12,12 @@ export default function ProcessPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
   useEffect(() => {
+    const token = localStorage.getItem('access_token')
+    if (!token) {
+      router.push('/auth/login')
+      return
+    }
+
     const fetchData = async () => {
       const query = localStorage.getItem('userQuery')
       if (!query) {
@@ -24,6 +30,7 @@ export default function ProcessPage() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
           },
           body: JSON.stringify({ query }),
         })

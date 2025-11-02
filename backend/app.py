@@ -27,6 +27,7 @@ from schemas import (
     Token,
     TokenData,
     FeedbackRequest,
+    ChatHistoryItem,
 )
 from services import (
     crawler,
@@ -312,6 +313,29 @@ async def extract(request: QueryRequest, current_user: User = Depends(get_curren
         result.response_id = db_response.id
     db.commit()
 
+    return ContactExtractionResponse(contacts_found=contacts_found, errors=errors)
+
+@app.get("/chat_history", response_model=List[ChatHistoryItem])
+async def get_chat_history(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    queries = db.query(Query).filter(Query.user_id == current_user.id).order_by(Query.created_at.desc()).all()
+    return [ChatHistoryItem(id=q.id, query_text=q.query_text, created_at=q.created_at) for q in queries]
+
+@app.get("/query/{query_id}/responses", response_model=ContactExtractionResponse)
+async def get_query_responses(query_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    query = db.query(Query).filter(Query.id == query_id, Query.user_id == current_user.id).first()
+    if not query:
+        raise HTTPException(status_code=404, detail="Query not found")
+    responses = db.query(Response).filter(Response.query_id == query_id).all()
+    contacts_found = {}
+    errors = {}
+    for r in responses:
+        contacts_found[r.base_url] = PerSourceResult(
+            socials=r.socials or [],
+            summary=r.summary or "",
+            contacts=r.contacts or [],
+            fit_score=r.fit_score or 0.0,
+            response_id=r.id
+        )
     return ContactExtractionResponse(contacts_found=contacts_found, errors=errors)
 
 @app.post("/score")

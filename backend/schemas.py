@@ -1,5 +1,6 @@
 from typing import List, Dict, Optional
 from pydantic import BaseModel, Field
+from datetime import datetime
 
 
 class URLRequest(BaseModel):
@@ -50,5 +51,11 @@ class TokenData(BaseModel):
 
 class FeedbackRequest(BaseModel):
     feedback: str  # e.g., "Good Fit", "Bad Fit"
+
+
+class ChatHistoryItem(BaseModel):
+    id: int
+    query_text: str
+    created_at: datetime
 
 

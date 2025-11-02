@@ -169,9 +169,9 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
 
         {selectedCompany && (
           <div className="w-full lg:w-1/2 flex flex-col border-t lg:border-t-0 lg:border-l border-gray-700 bg-black">
-            <div className="p-4 md:p-6 flex-1 overflow-y-auto">
-              <div className="bg-gray-900 border-2 border-gray-600 rounded-2xl p-4 md:p-6 h-full">
-                <div className="flex items-center mb-6">
+            <div className="p-4 md:p-6 flex-1 flex flex-col min-h-0">
+              <div className="bg-gray-900 border-2 border-gray-600 rounded-2xl p-4 md:p-6 flex-1 flex flex-col min-h-0">
+                <div className="flex items-center mb-6 flex-shrink-0">
                   <h2 className="text-lg md:text-xl font-bold text-white truncate flex-1">Company Details</h2>
                   <div className="flex items-center space-x-2">
                     <Button
@@ -201,10 +201,10 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
                   </div>
                 </div>
 
-                <div className="space-y-6">
+                <div className="flex-1 overflow-y-auto space-y-6">
                   <div>
                     <h3 className="text-xl md:text-2xl font-bold text-white mb-2 break-words">{selectedCompany.url}</h3>
-                    <p className="text-gray-400 text-sm md:text-base leading-relaxed">{selectedCompany.perSourceResult.summary}</p>
+                    <p className="text-gray-400 text-sm md:text-base leading-relaxed break-words">{selectedCompany.perSourceResult.summary}</p>
                   </div>
 
                   <div>
@@ -228,20 +228,20 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
                   {selectedCompany.perSourceResult.contacts.length > 0 && (
                     <div>
                       <label className="block text-sm font-medium text-gray-400 mb-1">Contacts</label>
-                      <div className="space-y-2">
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
                         {selectedCompany.perSourceResult.contacts.map((contact, idx) => (
                           <div key={idx} className="bg-gray-800 p-3 rounded-lg">
-                            {contact.name && <p className="text-white text-sm"><strong>Name:</strong> {contact.name}</p>}
-                            {contact.designation && <p className="text-white text-sm"><strong>Designation:</strong> {contact.designation}</p>}
-                            {contact.email && <p className="text-white text-sm"><strong>Email:</strong> {contact.email}</p>}
-                            {contact.phone && <p className="text-white text-sm"><strong>Phone:</strong> {contact.phone}</p>}
+                            {contact.name && <p className="text-white text-sm break-words"><strong>Name:</strong> {contact.name}</p>}
+                            {contact.designation && <p className="text-white text-sm break-words"><strong>Designation:</strong> {contact.designation}</p>}
+                            {contact.email && <p className="text-white text-sm break-all"><strong>Email:</strong> {contact.email}</p>}
+                            {contact.phone && <p className="text-white text-sm break-all"><strong>Phone:</strong> {contact.phone}</p>}
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  <div className="pt-4">
+                  <div className="pt-4 flex-shrink-0">
                     <Button className="w-full bg-yellow-600 hover:bg-yellow-700 text-white py-3 rounded-lg flex items-center justify-center gap-2">
                       <Mail className="w-4 h-4 md:w-5 md:h-5" />
                       <span className="text-sm md:text-base">Send Email</span>

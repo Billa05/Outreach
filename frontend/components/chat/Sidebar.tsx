@@ -11,22 +11,55 @@ import {
   FileText,
   X,
 } from "lucide-react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 
 type SidebarProps = {
   open: boolean
   onClose: () => void
 }
 
+type ChatItem = {
+  id: number
+  query_text: string
+  created_at: string
+}
+
 export function Sidebar({ open, onClose }: SidebarProps) {
+  const router = useRouter()
+  const [chatHistory, setChatHistory] = useState<ChatItem[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchMode, setSearchMode] = useState(false)
+
+  useEffect(() => {
+    const fetchChatHistory = async () => {
+      const token = localStorage.getItem('access_token')
+      if (!token) return
+      try {
+        const response = await fetch('http://localhost:8000/chat_history', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        })
+        if (response.ok) {
+          const data = await response.json()
+          setChatHistory(data)
+        }
+      } catch (error) {
+        console.error('Error fetching chat history:', error)
+      }
+    }
+    fetchChatHistory()
+  }, [])
+
+  const handleChatClick = (chatId: number) => {
+    router.push(`/results?queryId=${chatId}`)
+  }
+
   const sidebarItems = [
     { icon: MessageSquare, label: "New chat" },
     { icon: Search, label: "Search chats" },
     { icon: FileText, label: "API Docs" },
-  ]
-
-  const chatHistory = [
-    "Demo",
-    "Demo 2",
   ]
 
   return (
@@ -56,6 +89,15 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               <div
                 key={index}
                 className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-800 cursor-pointer text-sm"
+                onClick={() => {
+                  if (item.label === "New chat") {
+                    router.push('/')
+                  } else if (item.label === "Search chats") {
+                    setSearchMode(!searchMode)
+                  } else if (item.label === "API Docs") {
+                    // Open docs
+                  }
+                }}
               >
                 <item.icon className="w-4 h-4 flex-shrink-0" />
                 <span className="truncate">{item.label}</span>
@@ -66,14 +108,28 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
         <div className="flex-1 p-4 overflow-y-auto min-h-0">
           <div className="text-xs text-gray-500 mb-3 font-medium">Chats</div>
+          {searchMode && (
+            <div className="mb-3">
+              <input
+                type="text"
+                placeholder="Search chats..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
           <div className="space-y-1">
-            {chatHistory.map((chat, index) => (
+            {chatHistory
+              .filter(chat => chat.query_text.toLowerCase().includes(searchQuery.toLowerCase()))
+              .map((chat) => (
               <div
-                key={index}
+                key={chat.id}
                 className="px-3 py-2 rounded-lg hover:bg-gray-800 cursor-pointer text-sm text-gray-300 truncate"
-                title={chat}
+                title={chat.query_text}
+                onClick={() => handleChatClick(chat.id)}
               >
-                {chat}
+                {chat.query_text}
               </div>
             ))}
           </div>

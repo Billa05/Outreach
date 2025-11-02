@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { Sidebar } from "@/components/chat/Sidebar"
 import { Header } from "@/components/chat/Header"
 import { ResultsView, Company } from "@/components/chat/ResultsView"
 
-export default function ResultsPage() {
+function ResultsContent() {
   const searchParams = useSearchParams()
   const queryId = searchParams.get('queryId')
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -68,6 +68,18 @@ export default function ResultsPage() {
         />
       </div>
     </div>
+  )
+}
+
+export default function ResultsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen bg-black text-white items-center justify-center">
+        <div className="text-xl">Loading...</div>
+      </div>
+    }>
+      <ResultsContent />
+    </Suspense>
   )
 }
 

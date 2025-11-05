@@ -44,15 +44,15 @@ export default function ChatGPTClone() {
   // Home page only captures input and files; processing happens on /process and results on /results
 
   return (
-    <div className="flex h-screen bg-black text-white overflow-hidden">
+    <div className="flex h-screen bg-background text-foreground overflow-hidden">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-screen bg-black overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-screen bg-background overflow-hidden">
         <Header showOpenSidebarButton={!sidebarOpen} onOpenSidebar={() => setSidebarOpen(true)} />
 
         <div className="flex-1 flex flex-col items-center justify-center px-4">
-          <div className="text-2xl font-medium mb-8 text-center">Ready when you are.</div>
+          <div className="text-2xl font-medium mb-8 text-center text-foreground">Ready when you are.</div>
           <div className="w-full max-w-2xl">
             <FileUploads files={uploadedFiles} onRemove={removeFile} size="large" />
             <TopInput

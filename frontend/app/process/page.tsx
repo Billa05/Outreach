@@ -48,9 +48,9 @@ export default function ProcessPage() {
   }, [router])
 
   return (
-    <div className="flex h-screen bg-black text-white overflow-hidden">
+    <div className="flex h-screen bg-background text-foreground overflow-hidden">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="flex-1 flex flex-col min-h-screen bg-black overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-screen bg-background overflow-hidden">
         <Header showOpenSidebarButton={!sidebarOpen} onOpenSidebar={() => setSidebarOpen(true)} />
         <LoadingScreen />
       </div>

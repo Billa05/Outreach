@@ -21,7 +21,7 @@ export function TopInput({ input, onChange, isLoading, onSubmit, fileInputRef, o
         value={input}
         onChange={onChange}
         placeholder="Ask anything or upload documents"
-        className="w-full bg-gray-900 border-gray-700 rounded-full px-6 py-4 pr-32 text-white placeholder-gray-500 focus:border-gray-600 focus:ring-0"
+        className="w-full rounded-full px-6 py-4 pr-32"
         disabled={isLoading}
       />
       <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
@@ -38,7 +38,7 @@ export function TopInput({ input, onChange, isLoading, onSubmit, fileInputRef, o
           variant="ghost"
           size="sm"
           onClick={() => fileInputRef.current?.click()}
-          className="text-gray-400 hover:text-white hover:bg-gray-800 p-1 h-8 w-8"
+          className="p-1 h-8 w-8"
         >
           <Paperclip className="w-4 h-4" />
         </Button>
@@ -46,7 +46,7 @@ export function TopInput({ input, onChange, isLoading, onSubmit, fileInputRef, o
           type="button"
           variant="ghost"
           size="sm"
-          className="text-gray-400 hover:text-white hover:bg-gray-800 p-1 h-8 w-8"
+          className="p-1 h-8 w-8"
         >
           <Upload className="w-4 h-4" />
         </Button>
@@ -54,7 +54,7 @@ export function TopInput({ input, onChange, isLoading, onSubmit, fileInputRef, o
           type="button"
           variant="ghost"
           size="sm"
-          className="text-gray-400 hover:text-white hover:bg-gray-800 p-1 h-8 w-8"
+          className="p-1 h-8 w-8"
         >
           <Mic className="w-4 h-4" />
         </Button>

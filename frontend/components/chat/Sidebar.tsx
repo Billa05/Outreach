@@ -65,20 +65,20 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   return (
     <>
       <div
-        className={`${open ? "w-64 md:w-64" : "w-0"} bg-gray-950 flex flex-col transition-all duration-300 overflow-hidden border-r border-gray-800 fixed md:relative z-50 h-full`}
+        className={`${open ? "w-64 md:w-64" : "w-0"} bg-sidebar flex flex-col transition-all duration-300 overflow-hidden border-r border-sidebar-border fixed md:relative z-50 h-full`}
       >
-        <div className="p-4 border-b border-gray-800">
+        <div className="p-4 border-b border-sidebar-border">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
-                <div className="w-4 h-4 bg-black rounded-full"></div>
+              <div className="w-6 h-6 bg-background rounded-full flex items-center justify-center">
+                <div className="w-4 h-4 bg-foreground rounded-full"></div>
               </div>
             </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="text-gray-400 hover:text-white hover:bg-gray-800 p-1 h-8 w-8"
+              className="p-1 h-8 w-8"
             >
               <X className="w-4 h-4" />
             </Button>
@@ -88,7 +88,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             {sidebarItems.map((item, index) => (
               <div
                 key={index}
-                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-800 cursor-pointer text-sm"
+                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-sidebar-accent cursor-pointer text-sm text-sidebar-foreground"
                 onClick={() => {
                   if (item.label === "New chat") {
                     router.push('/')
@@ -107,7 +107,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </div>
 
         <div className="flex-1 p-4 overflow-y-auto min-h-0">
-          <div className="text-xs text-gray-500 mb-3 font-medium">Chats</div>
+          <div className="text-xs text-muted-foreground mb-3 font-medium">Chats</div>
           {searchMode && (
             <div className="mb-3">
               <input
@@ -115,7 +115,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 placeholder="Search chats..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-800 text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 bg-input text-foreground border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
           )}
@@ -125,7 +125,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               .map((chat) => (
               <div
                 key={chat.id}
-                className="px-3 py-2 rounded-lg hover:bg-gray-800 cursor-pointer text-sm text-gray-300 truncate"
+                className="px-3 py-2 rounded-lg hover:bg-sidebar-accent cursor-pointer text-sm text-sidebar-foreground truncate"
                 title={chat.query_text}
                 onClick={() => handleChatClick(chat.id)}
               >
@@ -138,7 +138,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
       {open && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+          className="fixed inset-0 bg-background/50 z-40 md:hidden"
           onClick={onClose}
         />
       )}

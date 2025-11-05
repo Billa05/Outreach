@@ -52,10 +52,10 @@ function ResultsContent() {
   }, [queryId])
 
   return (
-    <div className="flex h-screen bg-black text-white overflow-hidden">
+    <div className="flex h-screen bg-background text-foreground overflow-hidden">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="flex-1 flex flex-col min-h-screen bg-black overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-screen bg-background overflow-hidden">
         <Header showOpenSidebarButton={!sidebarOpen} onOpenSidebar={() => setSidebarOpen(true)} />
 
         <ResultsView
@@ -74,7 +74,7 @@ function ResultsContent() {
 export default function ResultsPage() {
   return (
     <Suspense fallback={
-      <div className="flex h-screen bg-black text-white items-center justify-center">
+      <div className="flex h-screen bg-background text-foreground items-center justify-center">
         <div className="text-xl">Loading...</div>
       </div>
     }>

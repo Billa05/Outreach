@@ -47,51 +47,49 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
-      <Card className="w-full max-w-md bg-gray-900 border-gray-700">
+    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4">
+      <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">Sign In</CardTitle>
-          <CardDescription className="text-center text-gray-400">
+          <CardDescription className="text-center">
             Enter your credentials to access the app
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label htmlFor="email" className="text-gray-300">Email</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="bg-gray-800 border-gray-600 text-white"
               />
             </div>
             <div>
-              <Label htmlFor="password" className="text-gray-300">Password</Label>
+              <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="bg-gray-800 border-gray-600 text-white"
               />
             </div>
-            {error && <p className="text-red-500 text-sm">{error}</p>}
+            {error && <p className="text-destructive text-sm">{error}</p>}
             <Button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-blue-600 hover:bg-blue-700"
+              className="w-full"
             >
               {isLoading ? 'Signing In...' : 'Sign In'}
             </Button>
           </form>
           <div className="mt-4 text-center">
-            <p className="text-gray-400">
+            <p className="text-muted-foreground">
               Don't have an account?{' '}
-              <a href="/auth/signup" className="text-blue-400 hover:underline">
+              <a href="/auth/signup" className="text-primary hover:underline">
                 Sign up
               </a>
             </p>

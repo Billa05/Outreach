@@ -6,6 +6,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+  reactStrictMode: false,
 }
 
 export default nextConfig

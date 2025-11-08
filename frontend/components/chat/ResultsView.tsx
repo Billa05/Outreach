@@ -2,6 +2,8 @@
 
 import { Button } from "@/components/ui/button"
 import { Menu, X, Mail, ThumbsUp, ThumbsDown } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { useState } from "react"
 
 export type ContactInfo = {
   name?: string
@@ -30,10 +32,13 @@ type ResultsViewProps = {
   companies: Company[]
   selectedCompanyUrl: string | null
   setSelectedCompanyUrl: (url: string | null) => void
+  queryId: string | null
 }
 
-export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies, selectedCompanyUrl, setSelectedCompanyUrl }: ResultsViewProps) {
+export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies, selectedCompanyUrl, setSelectedCompanyUrl, queryId }: ResultsViewProps) {
   const selectedCompany = companies.find((c) => c.url === selectedCompanyUrl) || null
+  const [loading, setLoading] = useState(false)
+  const [showPopup, setShowPopup] = useState(false)
 
   const handleFeedback = async (responseId: number | undefined, feedback: string) => {
     if (!responseId) return
@@ -41,6 +46,7 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
     if (!token) return
 
     try {
+      setLoading(true)
       await fetch(`http://localhost:8000/feedback/${responseId}`, {
         method: 'POST',
         headers: {
@@ -49,9 +55,12 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
         },
         body: JSON.stringify({ feedback }),
       })
+      setShowPopup(true)
       // Optionally, show a success message or update UI
     } catch (error) {
       console.error('Error sending feedback:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -242,9 +251,48 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
                   )}
 
                   <div className="pt-4 flex-shrink-0">
-                    <Button className="w-full bg-accent hover:bg-accent/80 py-3 rounded-lg flex items-center justify-center gap-2">
+                    <Button 
+                      className="w-full bg-accent hover:bg-accent/80 py-3 rounded-lg flex items-center justify-center gap-2"
+                      disabled={loading}
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        const emails = selectedCompany!.perSourceResult.contacts.map(c => c.email).filter(Boolean)
+                        if (emails.length === 0) {
+                          setShowPopup(true)
+                          return
+                        }
+                        setLoading(true)
+                        try {
+                          const token = localStorage.getItem('access_token')
+                          const response = await fetch('http://localhost:8000/generate_email', {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${token}`,
+                            },
+                            body: JSON.stringify({
+                              query_id: parseInt(queryId!),
+                              summary: selectedCompany!.perSourceResult.summary
+                            })
+                          })
+                          if (response.ok) {
+                            const data = await response.json()
+                            const to = emails.join(',')
+                            const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(data.subject)}&body=${encodeURIComponent(data.body)}`
+                            window.open(gmailUrl, '_blank')
+                          } else {
+                            alert('Error generating email')
+                          }
+                        } catch (error) {
+                          console.error(error)
+                          alert('Error generating email')
+                        } finally {
+                          setLoading(false)
+                        }
+                      }}
+                    >
                       <Mail className="w-4 h-4 md:w-5 md:h-5" />
-                      <span className="text-sm md:text-base">Send Email</span>
+                      <span className="text-sm md:text-base">{loading ? 'Generating...' : 'Send Email'}</span>
                     </Button>
                   </div>
                 </div>
@@ -253,6 +301,15 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
           </div>
         )}
       </div>
+
+      <Dialog open={showPopup} onOpenChange={setShowPopup}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>No Emails Found</DialogTitle>
+          </DialogHeader>
+          <p>No email addresses were found for this company.</p>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

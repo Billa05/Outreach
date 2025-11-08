@@ -59,3 +59,13 @@ class ChatHistoryItem(BaseModel):
     created_at: datetime
 
 
+class EmailGenerateRequest(BaseModel):
+    query_id: int
+    summary: str
+
+
+class EmailResponse(BaseModel):
+    subject: str
+    body: str
+
+

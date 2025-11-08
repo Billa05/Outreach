@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, Suspense, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { Sidebar } from "@/components/chat/Sidebar"
 import { Header } from "@/components/chat/Header"
@@ -13,13 +13,21 @@ function ResultsContent() {
   const [filterOpen, setFilterOpen] = useState(false)
   const [selectedCard, setSelectedCard] = useState<string | null>(null)
   const [companies, setCompanies] = useState<Company[]>([])
+  const [loading, setLoading] = useState(false)
+  const hasFetched = useRef(false)
 
   useEffect(() => {
+    if (hasFetched.current) return
     const fetchData = async () => {
+      hasFetched.current = true
+      setLoading(true)
       let data
       if (queryId) {
         const token = localStorage.getItem('access_token')
-        if (!token) return
+        if (!token) {
+          setLoading(false)
+          return
+        }
         try {
           const response = await fetch(`http://localhost:8000/query/${queryId}/responses`, {
             headers: {
@@ -47,6 +55,7 @@ function ResultsContent() {
         companyList.sort((a, b) => b.perSourceResult.fit_score - a.perSourceResult.fit_score)
         setCompanies(companyList)
       }
+      setLoading(false)
     }
     fetchData()
   }, [queryId])
@@ -65,6 +74,7 @@ function ResultsContent() {
           companies={companies}
           selectedCompanyUrl={selectedCard}
           setSelectedCompanyUrl={setSelectedCard}
+          queryId={queryId}
         />
       </div>
     </div>

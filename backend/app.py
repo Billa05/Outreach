@@ -1,16 +1,19 @@
 from urllib.parse import urlparse, urljoin
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request, status
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from typing import List, Dict, Optional
-import json
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
-from jose import JWTError, jwt
+from jose import JWTError, jwt, ExpiredSignatureError
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+import litellm
+import json
+import os
 
 from crawl4ai import (
     CrawlerRunConfig,
@@ -28,6 +31,8 @@ from schemas import (
     TokenData,
     FeedbackRequest,
     ChatHistoryItem,
+    EmailGenerateRequest,
+    EmailResponse,
 )
 from services import (
     crawler,
@@ -38,9 +43,9 @@ from lead_scorer import LeadRequest, predict_fit_score
 from db import User, Query, Response, get_db
 
 # Auth setup
-SECRET_KEY = "your-secret-key"  # Replace with a secure key, e.g., from env
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")  # Load from env or use default
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="signin")
@@ -73,7 +78,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     credentials_exception = HTTPException(
         status_code=401,
         detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
+        headers={"WWW-Authenticate": "Bearer", "X-Redirect-To": "/auth/login"},
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -81,12 +86,48 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         if email is None:
             raise credentials_exception
         token_data = TokenData(email=email)
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=401,
+            detail="Token has expired",
+            headers={"WWW-Authenticate": "Bearer", "X-Redirect-To": "/auth/login"},
+        )
     except JWTError:
         raise credentials_exception
     user = db.query(User).filter(User.email == token_data.email).first()
     if user is None:
         raise credentials_exception
     return user
+
+def get_current_user_optional(token: Optional[str] = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    """Optional authentication - returns None if not authenticated"""
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            return None
+        user = db.query(User).filter(User.email == email).first()
+        return user
+    except (JWTError, ExpiredSignatureError):
+        return None
+
+async def generate_email_content(query: str, summary: str) -> dict:
+    prompt = f"Generate a concise, professional outreach email that a potential client or partner can send to a company to express interest in their services or inquire about collaboration. Base the email on the user's search query: '{query}' and the company's summary: '{summary}'. Make the email personalized, engaging, and suitable for business outreach. Respond only with JSON in this format: {{'subject': 'subject text', 'body': 'body text'}}"
+    response = await litellm.acompletion(
+        model="gemini/gemini-2.0-flash",
+        messages=[{"role": "user", "content": prompt}],
+        api_key=os.getenv("GEMINI_API_KEY")
+    )
+    content = response.choices[0].message.content.strip()
+    # Remove ```json if present
+    if content.startswith("```json"):
+        content = content[7:]
+    if content.endswith("```"):
+        content = content[:-3]
+    data = json.loads(content)
+    return data
 
 # --- FastAPI App Setup ---
 @asynccontextmanager
@@ -110,11 +151,111 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
+    expose_headers=["X-Redirect-To"],  # Expose redirect header to frontend
 )
 
+# Global exception handler for authentication errors
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    if exc.status_code == 401:
+        return JSONResponse(
+            status_code=401,
+            content={
+                "detail": exc.detail,
+                "redirect_to": "/auth/login"
+            },
+            headers=exc.headers or {}
+        )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=exc.headers or {}
+    )
+
+@app.get("/health")
+async def health_check():
+    """
+    Public health check endpoint - no authentication required.
+    """
+    return {
+        "status": "healthy",
+        "service": "Contact Extractor API",
+        "version": "2.1.0"
+    }
+
 @app.get("/")
-async def root():
-    return {"message": "Hello World"}
+async def root(request: Request, db: Session = Depends(get_db)):
+    """
+    Root endpoint - checks if user is authenticated.
+    Returns user info if authenticated, otherwise indicates redirect needed.
+    """
+    # Try to get token from Authorization header
+    auth_header = request.headers.get("Authorization")
+    
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={
+                "authenticated": False,
+                "message": "Authentication required",
+                "redirect_to": "/auth/login"
+            }
+        )
+    
+    token = auth_header.replace("Bearer ", "")
+    
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "authenticated": False,
+                    "message": "Invalid token",
+                    "redirect_to": "/auth/login"
+                }
+            )
+        
+        user = db.query(User).filter(User.email == email).first()
+        if user is None:
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "authenticated": False,
+                    "message": "User not found",
+                    "redirect_to": "/auth/login"
+                }
+            )
+        
+        return {
+            "authenticated": True,
+            "message": "Welcome to Contact Extractor API",
+            "user": {
+                "email": user.email,
+                "id": user.id,
+                "created_at": user.created_at.isoformat() if user.created_at else None
+            }
+        }
+        
+    except ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={
+                "authenticated": False,
+                "message": "Token has expired",
+                "redirect_to": "/auth/login"
+            }
+        )
+    except JWTError:
+        return JSONResponse(
+            status_code=401,
+            content={
+                "authenticated": False,
+                "message": "Invalid token",
+                "redirect_to": "/auth/login"
+            }
+        )
 
 @app.post("/signup", response_model=Token)
 async def signup(user: UserCreate, db: Session = Depends(get_db)):
@@ -157,6 +298,23 @@ async def extract(request: QueryRequest, current_user: User = Depends(get_curren
     """
     errors: Dict[str, str] = {}
     user_query = request.query
+
+    # Check if query already exists for the user
+    existing_query = db.query(Query).filter(Query.user_id == current_user.id, Query.query_text == user_query).first()
+    if existing_query:
+        # Return existing responses
+        responses = db.query(Response).filter(Response.query_id == existing_query.id).all()
+        contacts_found = {}
+        for r in responses:
+            contacts_found[r.base_url] = PerSourceResult(
+                socials=r.socials or [],
+                summary=r.summary or "",
+                contacts=r.contacts or [],
+                fit_score=r.fit_score or 0.0,
+                response_id=r.id
+            )
+        return ContactExtractionResponse(contacts_found=contacts_found, errors={})
+
     try:
         base_inputs, website_summaries = await search_with_exa(user_query)
     except Exception as e:
@@ -359,3 +517,14 @@ async def add_feedback(response_id: int, feedback: FeedbackRequest, current_user
     response.user_feedback = feedback.feedback
     db.commit()
     return {"message": "Feedback added successfully"}
+
+@app.post("/generate_email", response_model=EmailResponse)
+async def generate_email_endpoint(request: EmailGenerateRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    Generate email content using Gemini.
+    """
+    query = db.query(Query).filter(Query.id == request.query_id, Query.user_id == current_user.id).first()
+    if not query:
+        raise HTTPException(status_code=404, detail="Query not found")
+    email_data = await generate_email_content(query.query_text, request.summary)
+    return email_data

@@ -9,18 +9,16 @@ import { ResultsView, Company } from "@/components/chat/ResultsView"
 function ResultsContent() {
   const searchParams = useSearchParams()
   const queryId = searchParams.get('queryId')
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [filterOpen, setFilterOpen] = useState(false)
   const [selectedCard, setSelectedCard] = useState<string | null>(null)
   const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(false)
-  const hasFetched = useRef(false)
 
   useEffect(() => {
-    if (hasFetched.current) return
     const fetchData = async () => {
-      hasFetched.current = true
       setLoading(true)
+      setSelectedCard(null) // Reset selected card when query changes
       let data
       if (queryId) {
         const token = localStorage.getItem('access_token')

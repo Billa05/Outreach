@@ -3,9 +3,8 @@ import './globals.css'
 import { ThemeProvider } from '@/components/theme-provider'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.dev',
+  title: 'Outreach',
+  description: 'Find contacts of businesses and reach out to them',
 }
 
 export default function RootLayout({

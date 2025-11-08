@@ -9,7 +9,7 @@ import { useState } from "react"
 
 export default function ProcessPage() {
   const router = useRouter()
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     const token = localStorage.getItem('access_token')

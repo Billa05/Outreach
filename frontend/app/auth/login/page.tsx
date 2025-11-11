@@ -47,33 +47,33 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 text-foreground flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 text-foreground flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-primary/5 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-20 right-10 w-96 h-96 bg-accent/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        <div className="absolute top-20 left-10 w-48 h-48 sm:w-72 sm:h-72 bg-primary/5 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-20 right-10 w-64 h-64 sm:w-96 sm:h-96 bg-accent/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
       </div>
       
       <Card className="w-full max-w-md shadow-2xl border-border/50 backdrop-blur-sm bg-card/95 relative z-10">
-        <CardHeader className="space-y-3 pb-6">
+        <CardHeader className="space-y-2 sm:space-y-3 pb-4 sm:pb-6">
           <div className="flex justify-center mb-2">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg">
-              <svg className="w-8 h-8 text-primary-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg">
+              <svg className="w-6 h-6 sm:w-8 sm:h-8 text-primary-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
           </div>
-          <CardTitle className="text-3xl font-bold text-center bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+          <CardTitle className="text-2xl sm:text-3xl font-bold text-center bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
             Welcome Back
           </CardTitle>
-          <CardDescription className="text-center text-base">
+          <CardDescription className="text-center text-sm sm:text-base">
             Sign in to continue your outreach journey
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-5">
+        <CardContent className="px-4 sm:px-6">
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">Email Address</Label>
+              <Label htmlFor="email" className="text-xs sm:text-sm font-medium">Email Address</Label>
               <Input
                 id="email"
                 type="email"
@@ -81,11 +81,11 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="h-11 transition-all focus:ring-2 focus:ring-primary/20"
+                className="h-10 sm:h-11 text-sm sm:text-base transition-all focus:ring-2 focus:ring-primary/20"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+              <Label htmlFor="password" className="text-xs sm:text-sm font-medium">Password</Label>
               <Input
                 id="password"
                 type="password"
@@ -93,18 +93,18 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="h-11 transition-all focus:ring-2 focus:ring-primary/20"
+                className="h-10 sm:h-11 text-sm sm:text-base transition-all focus:ring-2 focus:ring-primary/20"
               />
             </div>
             {error && (
               <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-                <p className="text-destructive text-sm font-medium">{error}</p>
+                <p className="text-destructive text-xs sm:text-sm font-medium">{error}</p>
               </div>
             )}
             <Button
               type="submit"
               disabled={isLoading}
-              className="w-full h-11 text-base font-semibold shadow-lg hover:shadow-xl transition-all"
+              className="w-full h-10 sm:h-11 text-sm sm:text-base font-semibold shadow-lg hover:shadow-xl transition-all"
             >
               {isLoading ? (
                 <span className="flex items-center gap-2">
@@ -119,8 +119,8 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
-          <div className="mt-6 pt-6 border-t border-border text-center">
-            <p className="text-sm text-muted-foreground">
+          <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-border text-center">
+            <p className="text-xs sm:text-sm text-muted-foreground">
               Don't have an account?{' '}
               <a href="/auth/signup" className="font-semibold text-primary hover:underline transition-colors">
                 Create one now

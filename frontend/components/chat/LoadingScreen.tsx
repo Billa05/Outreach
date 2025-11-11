@@ -21,51 +21,51 @@ export function LoadingScreen() {
   }, [])
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4 relative overflow-hidden">
+    <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 md:px-8 py-8 sm:py-12 relative overflow-hidden">
       {/* Animated background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/3 left-1/3 w-96 h-96 bg-primary/5 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-1/3 right-1/3 w-96 h-96 bg-accent/5 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        <div className="absolute top-1/3 left-1/3 w-48 h-48 sm:w-72 sm:h-72 md:w-96 md:h-96 bg-primary/5 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-1/3 right-1/3 w-48 h-48 sm:w-72 sm:h-72 md:w-96 md:h-96 bg-accent/5 rounded-full blur-3xl animate-pulse delay-1000"></div>
       </div>
 
-      <div className="text-center relative z-10 max-w-md">
+      <div className="text-center relative z-10 max-w-md w-full">
         {/* Animated spinner */}
-        <div className="relative w-24 h-24 mx-auto mb-8">
-          <div className="absolute inset-0 border-4 border-muted rounded-full"></div>
-          <div className="absolute inset-0 border-4 border-t-primary border-r-primary rounded-full animate-spin"></div>
-          <div className="absolute inset-2 border-4 border-primary/20 rounded-full animate-ping"></div>
+        <div className="relative w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 mx-auto mb-6 sm:mb-8">
+          <div className="absolute inset-0 border-2 sm:border-4 border-muted rounded-full"></div>
+          <div className="absolute inset-0 border-2 sm:border-4 border-t-primary border-r-primary rounded-full animate-spin"></div>
+          <div className="absolute inset-2 border-2 sm:border-4 border-primary/20 rounded-full animate-ping"></div>
         </div>
 
         {/* Step indicator */}
-        <div className="mb-6 text-4xl animate-bounce">
+        <div className="mb-4 sm:mb-6 text-3xl sm:text-4xl animate-bounce">
           {loadingSteps[currentStep].icon}
         </div>
 
         {/* Loading message */}
-        <h2 className="text-2xl font-bold mb-3 bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+        <h2 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-3 bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent px-2">
           Processing Your Request
         </h2>
-        <p className="text-lg text-muted-foreground mb-8 transition-all duration-500 min-h-[28px]">
+        <p className="text-base sm:text-lg text-muted-foreground mb-6 sm:mb-8 transition-all duration-500 min-h-[24px] sm:min-h-[28px] px-2">
           {loadingSteps[currentStep].message}
         </p>
 
         {/* Progress dots */}
-        <div className="flex justify-center gap-2 mb-8">
+        <div className="flex justify-center gap-1.5 sm:gap-2 mb-6 sm:mb-8">
           {loadingSteps.map((_, index) => (
             <div
               key={index}
-              className={`h-2 rounded-full transition-all duration-300 ${
+              className={`h-1.5 sm:h-2 rounded-full transition-all duration-300 ${
                 index === currentStep
-                  ? "w-8 bg-primary"
-                  : "w-2 bg-muted"
+                  ? "w-6 sm:w-8 bg-primary"
+                  : "w-1.5 sm:w-2 bg-muted"
               }`}
             />
           ))}
         </div>
 
         {/* Tip */}
-        <div className="p-4 rounded-lg bg-muted/30 backdrop-blur-sm border border-border/50">
-          <p className="text-sm text-muted-foreground">
+        <div className="p-3 sm:p-4 rounded-lg bg-muted/30 backdrop-blur-sm border border-border/50">
+          <p className="text-xs sm:text-sm text-muted-foreground">
             💡 <span className="font-medium">Tip:</span> We're crawling multiple websites to find the best matches for your query
           </p>
         </div>

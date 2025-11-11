@@ -51,29 +51,29 @@ export default function ChatGPTClone() {
       <div className="flex-1 flex flex-col min-h-screen bg-background overflow-hidden">
         <Header showOpenSidebarButton={!sidebarOpen} onOpenSidebar={() => setSidebarOpen(true)} />
 
-        <div className="flex-1 flex flex-col items-center justify-center px-4 relative overflow-hidden">
+        <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 md:px-8 py-8 sm:py-12 relative overflow-hidden">
           {/* Animated background */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl animate-pulse"></div>
-            <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent/5 rounded-full blur-3xl animate-pulse delay-1000"></div>
+            <div className="absolute top-1/4 left-1/4 w-48 h-48 sm:w-72 sm:h-72 md:w-96 md:h-96 bg-primary/5 rounded-full blur-3xl animate-pulse"></div>
+            <div className="absolute bottom-1/4 right-1/4 w-48 h-48 sm:w-72 sm:h-72 md:w-96 md:h-96 bg-accent/5 rounded-full blur-3xl animate-pulse delay-1000"></div>
           </div>
           
           <div className="relative z-10 w-full max-w-3xl">
             {/* Hero Section */}
-            <div className="text-center mb-12 space-y-4">
-              <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-foreground via-foreground/90 to-foreground/70 bg-clip-text text-transparent leading-tight">
+            <div className="text-center mb-8 sm:mb-10 md:mb-12 space-y-3 sm:space-y-4">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-foreground via-foreground/90 to-foreground/70 bg-clip-text text-transparent leading-tight px-2">
                 Find & Connect
               </h1>
-              <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto">
+              <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-muted-foreground max-w-2xl mx-auto px-2">
                 Discover the right contacts and start meaningful business conversations
               </p>
             </div>
 
             {/* Input Section */}
-            <div className="w-full space-y-4">
+            <div className="w-full space-y-3 sm:space-y-4">
               <FileUploads files={uploadedFiles} onRemove={removeFile} size="large" />
               <div className="relative group">
-                <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/50 to-accent/50 rounded-full blur opacity-30 group-hover:opacity-50 transition duration-500"></div>
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/50 to-accent/50 rounded-full blur opacity-30 group-hover:opacity-50 transition duration-500 hidden sm:block"></div>
                 <div className="relative">
                   <TopInput
                     input={input}

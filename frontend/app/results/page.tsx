@@ -62,18 +62,20 @@ function ResultsContent() {
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="flex-1 flex flex-col min-h-screen bg-background overflow-hidden">
+      <div className="flex-1 flex flex-col h-screen bg-background overflow-hidden min-h-0">
         <Header showOpenSidebarButton={!sidebarOpen} onOpenSidebar={() => setSidebarOpen(true)} />
 
-        <ResultsView
-          filterOpen={filterOpen}
-          onCloseFilter={() => setFilterOpen(false)}
-          onOpenFilter={() => setFilterOpen(true)}
-          companies={companies}
-          selectedCompanyUrl={selectedCard}
-          setSelectedCompanyUrl={setSelectedCard}
-          queryId={queryId}
-        />
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <ResultsView
+            filterOpen={filterOpen}
+            onCloseFilter={() => setFilterOpen(false)}
+            onOpenFilter={() => setFilterOpen(true)}
+            companies={companies}
+            selectedCompanyUrl={selectedCard}
+            setSelectedCompanyUrl={setSelectedCard}
+            queryId={queryId}
+          />
+        </div>
       </div>
     </div>
   )

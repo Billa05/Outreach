@@ -14,6 +14,9 @@ from sqlalchemy.orm import Session
 import litellm
 import json
 import os
+import io
+import boto3
+from botocore.exceptions import ClientError
 
 from crawl4ai import (
     CrawlerRunConfig,
@@ -49,6 +52,70 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="signin")
+
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "outreachdata")
+S3_JSONL_KEY = os.getenv("S3_JSONL_KEY", "b2b_lead_data_india.jsonl")
+AWS_REGION = os.getenv("AWS_REGION")
+
+def _get_s3_client():
+    if not S3_BUCKET_NAME:
+        return None
+    session = boto3.session.Session(region_name=AWS_REGION) if AWS_REGION else boto3.session.Session()
+    return session.client("s3")
+
+def _append_jsonl_records_to_s3(records):
+    """
+    Append a list of JSON-serializable dicts to the configured S3 JSONL file.
+    Safe no-op if S3 is not configured.
+    """
+    if not records:
+        return
+    s3 = _get_s3_client()
+    if s3 is None:
+        return
+    try:
+        existing_obj = s3.get_object(Bucket=S3_BUCKET_NAME, Key=S3_JSONL_KEY)
+        existing_bytes = existing_obj["Body"].read()
+    except ClientError as e:
+        # If the object doesn't exist, start from empty
+        if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "NoSuchBucket"):
+            existing_bytes = b""
+        else:
+            # Fail soft: skip appending on unexpected S3 errors
+            return
+    new_lines = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records).encode("utf-8")
+    combined = existing_bytes + new_lines
+    s3.put_object(Bucket=S3_BUCKET_NAME, Key=S3_JSONL_KEY, Body=combined, ContentType="application/x-ndjson")
+
+def _build_ml_jsonl_records(user_query: str, contacts_found: Dict[str, PerSourceResult]) -> List[dict]:
+    """
+    Build per-source records with fields expected by ml.ipynb:
+    - original_user_query: str
+    - org_summary: str
+    - contact_info: { email, phone, contact_title }
+    - user_feedback: str (empty if unavailable)
+    """
+    records = []
+    for base_url, result in contacts_found.items():
+        if not result.summary and not result.contacts:
+            continue
+        if result.contacts:
+            first = result.contacts[0]
+            contact_info = {
+                "email": first.email,
+                "phone": first.phone,
+                "contact_title": first.designation,
+            }
+        else:
+            contact_info = {"email": None, "phone": None, "contact_title": None}
+        record = {
+            "original_user_query": user_query,
+            "org_summary": result.summary or "",
+            "contact_info": contact_info,
+            "user_feedback": "",  # appended later via feedback endpoint if provided
+        }
+        records.append(record)
+    return records
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -471,6 +538,14 @@ async def extract(request: QueryRequest, current_user: User = Depends(get_curren
         result.response_id = db_response.id
     db.commit()
 
+    # Append ML training records to S3 JSONL (if configured)
+    try:
+        ml_records = _build_ml_jsonl_records(user_query, contacts_found)
+        _append_jsonl_records_to_s3(ml_records)
+    except Exception:
+        # Fail-soft: don't block API on data logging issues
+        pass
+
     return ContactExtractionResponse(contacts_found=contacts_found, errors=errors)
 
 @app.get("/chat_history", response_model=List[ChatHistoryItem])
@@ -516,6 +591,29 @@ async def add_feedback(response_id: int, feedback: FeedbackRequest, current_user
         raise HTTPException(status_code=403, detail="Not authorized")
     response.user_feedback = feedback.feedback
     db.commit()
+    # Append feedback-enriched record to S3 JSONL
+    try:
+        # Rebuild a single record from this response with user_feedback
+        query = response.query
+        # Choose first contact, map designation to contact_title
+        first_contact = None
+        if isinstance(response.contacts, list) and response.contacts:
+            first_contact = response.contacts[0]
+        contact_info = {
+            "email": (first_contact.get("email") if isinstance(first_contact, dict) else None),
+            "phone": (first_contact.get("phone") if isinstance(first_contact, dict) else None),
+            "contact_title": (first_contact.get("designation") if isinstance(first_contact, dict) else None),
+        }
+        record = {
+            "original_user_query": query.query_text,
+            "org_summary": response.summary or "",
+            "contact_info": contact_info,
+            "user_feedback": feedback.feedback or "",
+        }
+        _append_jsonl_records_to_s3([record])
+    except Exception:
+        # Fail-soft
+        pass
     return {"message": "Feedback added successfully"}
 
 @app.post("/generate_email", response_model=EmailResponse)

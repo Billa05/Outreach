@@ -25,7 +25,7 @@ export default function SignupPage() {
     setError("")
 
     try {
-      const response = await fetch('http://13.127.128.219:8000/signup', {
+      const response = await fetch('https://out-reach.duckdns.org:8000:8000/signup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

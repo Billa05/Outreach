@@ -27,7 +27,7 @@ function ResultsContent() {
           return
         }
         try {
-          const response = await fetch(`http://13.127.128.219/query/${queryId}/responses`, {
+          const response = await fetch(`https://out-reach.duckdns.org:8000/query/${queryId}/responses`, {
             headers: {
               'Authorization': `Bearer ${token}`,
             },

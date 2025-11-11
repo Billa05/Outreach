@@ -26,7 +26,7 @@ export default function ProcessPage() {
       }
 
       try {
-        const response = await fetch('http://13.127.128.219/extract', {
+        const response = await fetch('https://out-reach.duckdns.org:8000/extract', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

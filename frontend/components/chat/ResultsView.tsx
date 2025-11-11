@@ -47,7 +47,7 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
 
     try {
       setLoading(true)
-      await fetch(`http://13.127.128.219/feedback/${responseId}`, {
+      await fetch(`https://out-reach.duckdns.org:8000/feedback/${responseId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -402,7 +402,7 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
                         setLoading(true)
                         try {
                           const token = localStorage.getItem('access_token')
-                          const response = await fetch('http://13.127.128.219/generate_email', {
+                          const response = await fetch('https://out-reach.duckdns.org:8000/generate_email', {
                             method: 'POST',
                             headers: {
                               'Content-Type': 'application/json',

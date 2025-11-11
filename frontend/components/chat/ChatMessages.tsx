@@ -1,6 +1,8 @@
 "use client"
 
 import { Bot } from "lucide-react"
+import { useState, useEffect } from "react"
+import { getUserInitial } from "@/lib/user-utils"
 
 type ChatMessage = {
   id: string
@@ -14,6 +16,12 @@ type ChatMessagesProps = {
 }
 
 export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
+  const [userInitial, setUserInitial] = useState<string>('U')
+
+  useEffect(() => {
+    setUserInitial(getUserInitial())
+  }, [])
+
   return (
     <div className="flex-1 overflow-y-auto px-4 py-6">
       <div className="max-w-3xl mx-auto space-y-6">
@@ -22,7 +30,7 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
             <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center flex-shrink-0">
               {message.role === "user" ? (
                 <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center text-sm font-medium">
-                  B
+                  {userInitial}
                 </div>
               ) : (
                 <Bot className="w-5 h-5" />)

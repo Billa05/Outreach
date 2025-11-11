@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Menu, X, Mail, ThumbsUp, ThumbsDown } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useIsMobile } from "@/hooks/use-mobile"
 
 export type ContactInfo = {
@@ -42,6 +42,26 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
   const [loading, setLoading] = useState(false)
   const [showPopup, setShowPopup] = useState(false)
   const isMobile = useIsMobile()
+  
+  // Ensure mobile detection works on initial render
+  const [isMobileView, setIsMobileView] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 768
+    }
+    return false
+  })
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobileView(window.innerWidth < 768)
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+  
+  // Use the more reliable mobile detection
+  const isMobileDevice = isMobile || isMobileView
 
   const handleFeedback = async (responseId: number | undefined, feedback: string) => {
     if (!responseId) return
@@ -118,7 +138,7 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
       </div>
 
       {/* Desktop Filter Sidebar */}
-      {!isMobile && (
+      {!isMobileDevice && (
         <div
           className={`${filterOpen ? "w-full md:w-80" : "w-0"} bg-sidebar/95 backdrop-blur-sm border-r border-border/50 transition-all duration-300 overflow-hidden ${filterOpen ? "block" : "hidden"} shadow-xl relative z-10`}
         >
@@ -140,7 +160,7 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
       )}
 
       {/* Mobile Filter Sheet */}
-      {isMobile && (
+      {isMobileDevice && (
         <Sheet open={filterOpen} onOpenChange={(open) => !open && onCloseFilter()}>
           <SheetContent side="left" className="w-3/4 sm:max-w-sm">
             <SheetHeader>
@@ -153,8 +173,8 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
         </Sheet>
       )}
 
-      <div className={`flex-1 flex ${selectedCompanyUrl && !isMobile ? "flex-row" : "flex-col"} relative z-10 min-h-0`}>
-        <div className={`${selectedCompanyUrl && !isMobile ? "w-full lg:w-1/2" : "w-full"} ${selectedCompanyUrl && isMobile ? "hidden" : "flex"} transition-all duration-300 flex-col min-h-0 h-full`}>
+      <div className={`flex-1 flex ${selectedCompanyUrl && !isMobileDevice ? "flex-row" : "flex-col"} relative z-10 min-h-0`}>
+        <div className={`${selectedCompanyUrl && !isMobileDevice ? "w-full lg:w-1/2" : "w-full"} ${selectedCompanyUrl && isMobileDevice ? "hidden" : "flex"} transition-all duration-300 flex-col min-h-0 h-full`}>
           <div className="p-3 sm:p-4 md:p-6 flex-shrink-0 bg-background/80 backdrop-blur-sm border-b border-border/50 z-10">
             <div className="flex items-center justify-between gap-2 mb-2">
               <div className="min-w-0 flex-1">
@@ -283,24 +303,26 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
         </div>
 
         {selectedCompany && (
-          <div className={`${isMobile ? "w-full fixed inset-0 z-50 bg-background flex flex-col" : "w-full lg:w-1/2 flex flex-col"} ${isMobile ? "" : "border-t lg:border-t-0 lg:border-l border-border/50"} bg-background/80 backdrop-blur-sm`}>
-            {isMobile && (
-              <div className="p-3 sm:p-4 border-b border-border/50 flex items-center justify-between flex-shrink-0 bg-background/95 backdrop-blur-sm sticky top-0 z-10">
-                <h2 className="text-lg font-bold">Company Details</h2>
+          <div className={`${isMobileDevice ? "w-full fixed inset-0 z-50 bg-background flex flex-col" : "w-full lg:w-1/2 flex flex-col"} ${isMobileDevice ? "" : "border-t lg:border-t-0 lg:border-l border-border/50"} bg-background/80 backdrop-blur-sm`}>
+            {/* Mobile Header with Close Button - Always visible on mobile, positioned below main header */}
+            {isMobileDevice && (
+              <div className="p-3 sm:p-4 border-b border-border/50 flex items-center justify-between flex-shrink-0 bg-background/95 backdrop-blur-sm sticky top-[56px] sm:top-[64px] z-50 shadow-sm">
+                <h2 className="text-lg font-bold text-foreground">Company Details</h2>
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   onClick={() => setSelectedCompanyUrl(null)}
-                  className="h-9 w-9 rounded-lg hover:bg-muted/50 transition-colors border border-border/50"
+                  className="h-9 w-9 rounded-lg hover:bg-muted/80 transition-colors border-2 border-border shadow-sm flex items-center justify-center"
                   aria-label="Close company details"
+                  title="Close"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-5 h-5 text-foreground" />
                 </Button>
               </div>
             )}
-            <div className={`p-3 sm:p-4 md:p-6 flex-1 flex flex-col min-h-0 ${isMobile ? "overflow-y-auto" : ""}`}>
+            <div className={`p-3 sm:p-4 md:p-6 flex-1 flex flex-col min-h-0 ${isMobileDevice ? "overflow-y-auto pt-[65px] sm:pt-[128px]" : ""}`}>
               <div className="bg-card/95 backdrop-blur-sm border-2 border-border/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 md:p-6 flex-1 flex flex-col min-h-0 shadow-xl">
-                {!isMobile && (
+                {!isMobileDevice && (
                   <div className="flex items-center mb-4 sm:mb-6 flex-shrink-0">
                     <h2 className="text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent flex-1">
                       Company Details
@@ -430,7 +452,7 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
 
                   {/* Action Button */}
                   <div className="pt-2 flex-shrink-0">
-                    {isMobile && (
+                    {isMobileDevice && (
                       <div className="flex items-center gap-2 mb-3">
                         <Button
                           variant="ghost"

@@ -39,6 +39,7 @@ export default function SignupPage() {
       if (response.ok) {
         const data = await response.json()
         localStorage.setItem('access_token', data.access_token)
+        localStorage.setItem('user_email', email) // Store email for avatar
         router.push('/')
       } else {
         const errorData = await response.json()

@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button"
 import { Menu, LogOut } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { getUserInitial } from "@/lib/user-utils"
 
 type HeaderProps = {
   showOpenSidebarButton: boolean
@@ -12,9 +14,15 @@ type HeaderProps = {
 
 export function Header({ showOpenSidebarButton, onOpenSidebar }: HeaderProps) {
   const router = useRouter()
+  const [userInitial, setUserInitial] = useState<string>('U')
+
+  useEffect(() => {
+    setUserInitial(getUserInitial())
+  }, [])
 
   const handleLogout = () => {
     localStorage.removeItem('access_token')
+    localStorage.removeItem('user_email')
     router.push('/auth/login')
   }
 
@@ -55,7 +63,7 @@ export function Header({ showOpenSidebarButton, onOpenSidebar }: HeaderProps) {
           <span className="hidden md:inline text-sm font-medium">Logout</span>
         </Button>
         <div className="w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-br from-primary to-primary/80 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold flex-shrink-0 text-primary-foreground shadow-sm ring-2 ring-background ring-offset-1 sm:ring-offset-2">
-          B
+          {userInitial}
         </div>
       </div>
     </div>

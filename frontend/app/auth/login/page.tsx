@@ -20,7 +20,7 @@ export default function LoginPage() {
     setError("")
 
     try {
-      const response = await fetch('http://localhost:8000/signin', {
+      const response = await fetch('http://13.127.128.219/signin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',

@@ -36,7 +36,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       const token = localStorage.getItem('access_token')
       if (!token) return
       try {
-        const response = await fetch('http://localhost:8000/chat_history', {
+        const response = await fetch('http://13.127.128.219/chat_history', {
           headers: {
             'Authorization': `Bearer ${token}`,
           },

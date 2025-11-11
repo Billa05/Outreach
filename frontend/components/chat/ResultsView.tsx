@@ -39,8 +39,10 @@ type ResultsViewProps = {
 
 export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies, selectedCompanyUrl, setSelectedCompanyUrl, queryId }: ResultsViewProps) {
   const selectedCompany = companies.find((c) => c.url === selectedCompanyUrl) || null
-  const [loading, setLoading] = useState(false)
+  const [emailLoading, setEmailLoading] = useState(false)
+  const [feedbackLoading, setFeedbackLoading] = useState<number | null>(null)
   const [showPopup, setShowPopup] = useState(false)
+  const [feedbackState, setFeedbackState] = useState<Map<number, 'positive' | 'negative'>>(new Map())
   const isMobile = useIsMobile()
   
   // Ensure mobile detection works on initial render
@@ -63,14 +65,14 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
   // Use the more reliable mobile detection
   const isMobileDevice = isMobile || isMobileView
 
-  const handleFeedback = async (responseId: number | undefined, feedback: string) => {
+  const handleFeedback = async (responseId: number | undefined, feedback: 'positive' | 'negative') => {
     if (!responseId) return
     const token = localStorage.getItem('access_token')
     if (!token) return
 
     try {
-      setLoading(true)
-      await fetch(`https://out-reach.duckdns.org:8000/feedback/${responseId}`, {
+      setFeedbackLoading(responseId)
+      const response = await fetch(`https://out-reach.duckdns.org:8000/feedback/${responseId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -78,12 +80,17 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
         },
         body: JSON.stringify({ feedback }),
       })
-      setShowPopup(true)
-      // Optionally, show a success message or update UI
+      if (response.ok) {
+        // Store feedback state to persist the visual indication
+        setFeedbackState(prev => new Map(prev).set(responseId, feedback))
+        console.log('Feedback submitted successfully')
+      } else {
+        console.error('Failed to submit feedback:', response.statusText)
+      }
     } catch (error) {
       console.error('Error sending feedback:', error)
     } finally {
-      setLoading(false)
+      setFeedbackLoading(null)
     }
   }
 
@@ -332,7 +339,11 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
                         variant="ghost"
                         size="sm"
                         onClick={() => handleFeedback(selectedCompany.perSourceResult.response_id, 'positive')}
-                        className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg sm:rounded-xl hover:bg-green-500/10 hover:text-green-600 dark:hover:text-green-400 transition-all"
+                        className={`h-8 w-8 sm:h-9 sm:w-9 rounded-lg sm:rounded-xl transition-all ${
+                          feedbackState.get(selectedCompany.perSourceResult.response_id || 0) === 'positive'
+                            ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                            : 'hover:bg-green-500/10 hover:text-green-600 dark:hover:text-green-400'
+                        }`}
                         title="Good fit"
                       >
                         <ThumbsUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -341,7 +352,11 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
                         variant="ghost"
                         size="sm"
                         onClick={() => handleFeedback(selectedCompany.perSourceResult.response_id, 'negative')}
-                        className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg sm:rounded-xl hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-all"
+                        className={`h-8 w-8 sm:h-9 sm:w-9 rounded-lg sm:rounded-xl transition-all ${
+                          feedbackState.get(selectedCompany.perSourceResult.response_id || 0) === 'negative'
+                            ? 'bg-red-500/20 text-red-600 dark:text-red-400'
+                            : 'hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400'
+                        }`}
                         title="Poor fit"
                       >
                         <ThumbsDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -458,7 +473,11 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
                           variant="ghost"
                           size="sm"
                           onClick={() => handleFeedback(selectedCompany.perSourceResult.response_id, 'positive')}
-                          className="flex-1 h-9 rounded-lg hover:bg-green-500/10 hover:text-green-600 dark:hover:text-green-400 transition-all"
+                          className={`flex-1 h-9 rounded-lg transition-all ${
+                            feedbackState.get(selectedCompany.perSourceResult.response_id || 0) === 'positive'
+                              ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                              : 'hover:bg-green-500/10 hover:text-green-600 dark:hover:text-green-400'
+                          }`}
                         >
                           <ThumbsUp className="w-4 h-4 mr-2" />
                           Good fit
@@ -467,7 +486,11 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
                           variant="ghost"
                           size="sm"
                           onClick={() => handleFeedback(selectedCompany.perSourceResult.response_id, 'negative')}
-                          className="flex-1 h-9 rounded-lg hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-all"
+                          className={`flex-1 h-9 rounded-lg transition-all ${
+                            feedbackState.get(selectedCompany.perSourceResult.response_id || 0) === 'negative'
+                              ? 'bg-red-500/20 text-red-600 dark:text-red-400'
+                              : 'hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400'
+                          }`}
                         >
                           <ThumbsDown className="w-4 h-4 mr-2" />
                           Poor fit
@@ -476,7 +499,7 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
                     )}
                     <Button 
                       className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground py-3 sm:py-4 rounded-lg sm:rounded-xl flex items-center justify-center gap-2 sm:gap-3 shadow-lg hover:shadow-xl transition-all font-semibold text-sm sm:text-base disabled:opacity-50"
-                      disabled={loading}
+                      disabled={emailLoading}
                       onClick={async (e) => {
                         e.stopPropagation()
                         const emails = selectedCompany!.perSourceResult.contacts.map(c => c.email).filter(Boolean)
@@ -484,7 +507,7 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
                           setShowPopup(true)
                           return
                         }
-                        setLoading(true)
+                        setEmailLoading(true)
                         try {
                           const token = localStorage.getItem('access_token')
                           const response = await fetch('https://out-reach.duckdns.org:8000/generate_email', {
@@ -510,11 +533,11 @@ export function ResultsView({ filterOpen, onCloseFilter, onOpenFilter, companies
                           console.error(error)
                           alert('Error generating email')
                         } finally {
-                          setLoading(false)
+                          setEmailLoading(false)
                         }
                       }}
                     >
-                      {loading ? (
+                      {emailLoading ? (
                         <>
                           <svg className="animate-spin h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
